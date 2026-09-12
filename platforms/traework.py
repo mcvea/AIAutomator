@@ -64,7 +64,7 @@ class TraeWorkCheckin(BaseCheckin):
     AUTH_FILE_CANDIDATES = [
         os.path.join(os.environ.get("APPDATA", ""), "TRAE SOLO CN", "User",
                      "globalStorage", "storage.json"),
-        r"C:\Users\USER\AppData\Roaming\TRAE SOLO CN\User\globalStorage\storage.json",
+
     ]
 
     def __init__(self, dry: bool = False):

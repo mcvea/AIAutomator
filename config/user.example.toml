@@ -1,0 +1,10 @@
+# 用户配置：启用平台、通知偏好
+# 复制为 user.toml 后按需修改（示例默认启用全部平台）
+
+[platforms]
+# 需要启用的平台（对应 automator/platforms/*.toml 的 name）
+enabled = ["workbuddy", "minimax", "traework", "dumate", "lobster"]
+
+[notify]
+# 通知通道：feishu_direct（飞书私聊）/ feishu_webhook（群机器人）/ stdout（控制台）
+channels = ["feishu_direct"]

@@ -52,8 +52,8 @@ class MiniMaxCheckin(BaseCheckin):
         os.path.join(os.path.expanduser("~"), ".minimax", "auth", "prod", "cn",
                      "mcode-public", "auth.json"),
         # 兜底真实路径（应对环境变量重定向）
-        r"C:\Users\USER\.minimax\local-runtime.auth.json",
-        r"C:\Users\USER\.minimax\auth\prod\cn\mcode-public\auth.json",
+
+
     ]
 
     # 设备参数字段顺序（严格对齐桌面端，影响 yy 签名）
@@ -86,7 +86,7 @@ class MiniMaxCheckin(BaseCheckin):
         """读取 cn-config（含 realUserID / deviceID）"""
         for path in (
             os.path.join(os.environ.get("APPDATA", ""), "minimax", "minimax-agent-cn-config.json"),
-            r"C:\Users\USER\AppData\Roaming\minimax\minimax-agent-cn-config.json",
+
         ):
             if path and os.path.isfile(path):
                 try:

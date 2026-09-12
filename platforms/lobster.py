@@ -42,7 +42,7 @@ class LobsterCheckin(BaseCheckin):
 
     DB_CANDIDATES = [
         os.path.join(os.environ.get("APPDATA", ""), "LobsterAI", "lobsterai.sqlite"),
-        r"C:\Users\USER\AppData\Roaming\LobsterAI\lobsterai.sqlite",
+
     ]
 
     def __init__(self, dry: bool = False):

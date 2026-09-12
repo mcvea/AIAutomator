@@ -1,5 +1,6 @@
 # WorkBuddy（腾讯 AI 办公工作台）平台定义
 # 登录态：本机客户端明文 JSON 文件；接口：billing/meter
+# 登录态路径：%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info
 
 [platform]
 name = "workbuddy"
@@ -9,7 +10,7 @@ enabled = true
 
 [platform.auth]
 type = "json_file"
-path = "C:\\Users\\USER\\AppData\\Local\\CodeBuddyExtension\\Data\\Public\\auth\\workbuddy-desktop.info"
+path = "%LOCALAPPDATA%\\CodeBuddyExtension\\Data\\Public\\auth\\workbuddy-desktop.info"
 token_field = "auth.accessToken"
 expires_field = "auth.expiresAt"
 refresh_expires_field = "auth.refreshExpiresAt"

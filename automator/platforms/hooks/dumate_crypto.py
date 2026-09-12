@@ -17,6 +17,9 @@ def decrypt_cookies(encrypted_b64: str, key_file: str) -> list:
     import json
     from Crypto.Cipher import AES
 
+    from automator import paths
+    key_file = paths.resolve_path(key_file)
+
     with open(key_file, "rb") as f:
         key = f.read()
     if len(key) != 32:

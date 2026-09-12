@@ -1,6 +1,7 @@
 # TraeWork（字节 AI 办公平台）平台定义
 # 登录态：storage.json 中 AES 加密信封（hooks/traework_crypto 解密）
-# 签到：hook_checkin 完整接管（解密 + 自动续期 + 状态/领取，见 hooks/traework_crypto）
+# 路径：%APPDATA%\TRAE SOLO CN\User\globalStorage\storage.json
+# 签到：hook_checkin 完整接管（解密 + 自动续期 + 状态/领取）
 
 [platform]
 name = "traework"
@@ -10,7 +11,7 @@ enabled = true
 
 [platform.auth]
 type = "encrypted_json"
-path = "C:\\Users\\USER\\AppData\\Roaming\\TRAE SOLO CN\\User\\globalStorage\\storage.json"
+path = "%APPDATA%\\TRAE SOLO CN\\User\\globalStorage\\storage.json"
 encrypted_field = "iCubeAuthInfo://icube.cloudide"
 token_field = "token"
 

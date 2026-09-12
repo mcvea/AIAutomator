@@ -1,7 +1,8 @@
 # LobsterAI（网易有道桌面 Agent）平台定义
 # 登录态：SQLite kv 表 auth_tokens.accessToken
-# 签到：hook_checkin 完整接管（slot → context → check_in 三步，见 hooks/lobster_checkin）
-# 积分到期：profile-summary creditItems 声明式解析
+# 路径：%APPDATA%\LobsterAI\lobsterai.sqlite
+# 签到：hook_checkin 完整接管（slot → context → check_in 三步）
+# 积分到期：profile-summary creditItems（hooks 提供）
 
 [platform]
 name = "lobster"
@@ -11,7 +12,7 @@ enabled = true
 
 [platform.auth]
 type = "sqlite_kv"
-path = "C:\\Users\\USER\\AppData\\Roaming\\LobsterAI\\lobsterai.sqlite"
+path = "%APPDATA%\\LobsterAI\\lobsterai.sqlite"
 kv_key = "auth_tokens"
 token_field = "accessToken"
 
@@ -29,11 +30,3 @@ api = "credits"
 method = "GET"
 url = "https://lobsterai-server.youdao.com/api/user/profile-summary?firstKeyfrom=official"
 auth = "bearer"
-
-[platform.credits.parse]
-container = "data.creditItems"
-
-[platform.credits.parse.fields]
-label = "label"
-credits = "creditsRemaining"
-expires_at = "expiresAt"

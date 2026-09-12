@@ -18,8 +18,10 @@ class AuthError(Exception):
 
 
 def read_json_file(path: str) -> dict:
+    from automator import paths
+    path = paths.resolve_path(path)
     if not path or not os.path.isfile(path):
-        raise AuthError(f"登录态文件不存在: {path}")
+        raise AuthError(f"登录态文件不存在: {paths.describe(path)}")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -59,9 +61,10 @@ def resolve_credential(auth_cfg: dict, hook=None) -> dict:
 
     elif atype == "sqlite_kv":
         import sqlite3
-        db = auth_cfg.get("path", "")
+        from automator import paths
+        db = paths.resolve_path(auth_cfg.get("path", ""))
         if not os.path.isfile(db):
-            raise AuthError(f"数据库不存在: {db}")
+            raise AuthError(f"数据库不存在: {paths.describe(db)}")
         conn = sqlite3.connect(db)
         try:
             row = conn.execute(

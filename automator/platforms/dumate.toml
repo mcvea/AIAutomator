@@ -1,7 +1,8 @@
 # 百度搭子 DuMate（千帆桌面）平台定义
 # 登录态：auth.json 加密 cookies（hooks/dumate_crypto 解密，AES-256-GCM + .cookie-key）
+# 路径：%APPDATA%\qianfan-desktop-app\auth.json（及同目录 .cookie-key）
 # 鉴权：Cookie 头 + csrftoken（由 auth_store 自动生成，模板注入）
-# 积分到期：quota_overview 声明式解析
+# 积分到期：quota_overview 声明式解析 + hooks 增量补充
 
 [platform]
 name = "dumate"
@@ -11,8 +12,8 @@ enabled = true
 
 [platform.auth]
 type = "cookie_jar"
-path = "C:\\Users\\USER\\AppData\\Roaming\\qianfan-desktop-app\\auth.json"
-key_file = "C:\\Users\\USER\\AppData\\Roaming\\qianfan-desktop-app\\.cookie-key"
+path = "%APPDATA%\\qianfan-desktop-app\\auth.json"
+key_file = "%APPDATA%\\qianfan-desktop-app\\.cookie-key"
 target_host = "console.bce.baidu.com"
 
 [platform.hooks]
@@ -47,7 +48,7 @@ auth = "raw"
 [platform.apis.checkin.parse]
 already = "result.success == false"
 
-# 积分到期（quota_overview）
+# 积分到期（quota_overview，完整列表由 hooks/dumate_crypto.credits 提供）
 [platform.credits]
 enabled = true
 api = "credits"
@@ -56,14 +57,3 @@ api = "credits"
 method = "GET"
 url = "https://console.bce.baidu.com/api/dumate/points/quota_overview?timezone=Asia/Shanghai&clientType=desktop&ignoreLoginBonus=true"
 auth = "raw"
-
-[platform.credits.parse]
-# 先取 subscription（订阅套餐），再取 incremental（增量积分）
-container = "result.subscription"
-
-[platform.credits.parse.fields]
-label = "packageType"
-credits = "totalPoints"
-expires_ts = "expireDate"
-
-# incremental 增量需二次解析：engine 支持多 container（见 dumate_crypto.credits 扩展）

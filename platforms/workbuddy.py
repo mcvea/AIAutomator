@@ -32,7 +32,7 @@ class WorkBuddyCheckin(BaseCheckin):
         os.path.join(os.environ.get("LOCALAPPDATA", ""),
                      "CodeBuddyExtension", "Data", "Public", "auth", "workbuddy-desktop.info"),
         # 兜底真实路径
-        r"C:\Users\USER\AppData\Local\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info",
+
         os.path.join(os.path.expanduser("~"), ".workbuddy", "auth", "workbuddy-desktop.info"),
     ]
 

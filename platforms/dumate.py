@@ -40,7 +40,7 @@ class DuMateCheckin(BaseCheckin):
 
     APP_DIR_CANDIDATES = [
         os.path.join(os.environ.get("APPDATA", ""), "qianfan-desktop-app"),
-        r"C:\Users\USER\AppData\Roaming\qianfan-desktop-app",
+
     ]
 
     def __init__(self, dry: bool = False):

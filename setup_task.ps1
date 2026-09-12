@@ -19,11 +19,12 @@ $ErrorActionPreference = "Stop"
 $TaskName = "AIAutomatorDaily"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# 定位 Python
+# 定位 Python（优先 PATH 中的 python，其次常见安装位置）
 $pythonCandidates = @(
-    "C:\Users\USER\AppData\Local\Programs\Python\Python312\python.exe",
-    "C:\Users\USER\AppData\Local\Programs\Python\Python311\python.exe",
-    (Get-Command python.exe -ErrorAction SilentlyContinue).Source
+    (Get-Command python.exe -ErrorAction SilentlyContinue).Source,
+    (Get-Command py.exe -ErrorAction SilentlyContinue).Source,
+    "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe"
 ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
 
 if (-not $pythonCandidates) {
