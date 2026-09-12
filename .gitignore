@@ -1,5 +1,13 @@
 # ===== 敏感配置（严禁提交） =====
 config/secrets.json
+config/secrets.json.bak
+config/secrets.*.json
+!config/secrets.example.json
+config/user.toml
+config/user.local.toml
+.env
+*.pem
+*.key
 
 # ===== 运行产物 =====
 logs/

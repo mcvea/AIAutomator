@@ -5,6 +5,12 @@
   与旧版 LoomyAICheckin 完全独立，互不影响。
 
 .DESCRIPTION
+  用途说明：本脚本仅向当前用户注册一个 Windows 计划任务，
+  定时以本机 Python 执行 `python -m automator run daily`（每日签到任务）。
+  - -ExecutionPolicy Bypass 仅作用于本次脚本调用，不修改系统策略；
+  - 脚本只执行本仓库内的 automator 模块，不下载、不执行任何远程代码；
+  - 支持睡眠唤醒（WakeToRun）、电池供电运行，任务执行超时 10 分钟。
+
   用法：
     powershell -ExecutionPolicy Bypass -File .\setup_task.ps1
     powershell -ExecutionPolicy Bypass -File .\setup_task.ps1 -Time "09:30"
