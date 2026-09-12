@@ -10,7 +10,7 @@ AIAutomator 在设计上不持有任何持久化的用户凭证：
    - 不落盘、不上传、不写入日志、不发送到任何第三方服务
 
 2. **通知凭证（如飞书 app_secret）**
-   - 仅保存在 `config/secrets.json`，该文件已被 `.gitignore` 排除
+   - 仅保存在本地 `config/secrets.json`（模板见 `secrets.example.json`），不上传到任何远程服务
    - 上传/克隆前请确认自己没有把该文件提交到 git 历史：
      ```powershell
      git log --all --full-history -- config/secrets.json
