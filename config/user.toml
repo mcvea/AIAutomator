@@ -1,0 +1,8 @@
+# 用户配置：启用平台、通知偏好等
+# 敏感凭证放在 secrets.json（不入 git）
+
+[platforms]
+enabled = ["workbuddy", "minimax", "traework", "dumate", "lobster"]
+
+[notify]
+channels = ["feishu_direct"]

@@ -1,0 +1,20 @@
+# MiniMax Code（MiniMax Agent 桌面端）平台定义
+# 登录态：local-runtime.auth.json 的 JWT
+# 签到：hook_checkin 完整接管（续期 + 签名 + 状态判断，见 hooks/minimax_signer）
+
+[platform]
+name = "minimax"
+display = "MiniMax Code"
+daily_credits = 400
+enabled = true
+
+[platform.auth]
+type = "json_file"
+path = "C:\\Users\\USER\\.minimax\\local-runtime.auth.json"
+token_field = "auth.accessToken"
+
+[platform.hooks]
+checkin = "minimax_signer"
+health = "minimax_signer"
+
+# 积分到期：签到积分滚动有效，无到期接口

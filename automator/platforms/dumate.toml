@@ -1,0 +1,69 @@
+# 百度搭子 DuMate（千帆桌面）平台定义
+# 登录态：auth.json 加密 cookies（hooks/dumate_crypto 解密，AES-256-GCM + .cookie-key）
+# 鉴权：Cookie 头 + csrftoken（由 auth_store 自动生成，模板注入）
+# 积分到期：quota_overview 声明式解析
+
+[platform]
+name = "dumate"
+display = "百度搭子 DuMate"
+daily_credits = 500
+enabled = true
+
+[platform.auth]
+type = "cookie_jar"
+path = "C:\\Users\\USER\\AppData\\Roaming\\qianfan-desktop-app\\auth.json"
+key_file = "C:\\Users\\USER\\AppData\\Roaming\\qianfan-desktop-app\\.cookie-key"
+target_host = "console.bce.baidu.com"
+
+[platform.hooks]
+cookies_decrypt = "dumate_crypto"
+health = "dumate_crypto"
+credits = "dumate_crypto"
+
+[platform.extra_headers]
+Cookie = "{{cookie_str}}"
+csrftoken = "{{csrf_token}}"
+Origin = "https://console.bce.baidu.com"
+Referer = "https://console.bce.baidu.com/"
+X-Requested-With = "XMLHttpRequest"
+
+[platform.apis.checkin_status]
+method = "GET"
+url = "https://console.bce.baidu.com/api/dumate/points/loginBonusInfo"
+auth = "raw"
+
+[platform.apis.checkin_status.parse]
+already = "result.hasIssued == true"
+
+[platform.apis.checkin_status.parse.fields]
+total = "result.totalPoints"
+
+[platform.apis.checkin]
+method = "POST"
+url = "https://console.bce.baidu.com/api/dumate/points/loginBonus"
+body = "{}"
+auth = "raw"
+
+[platform.apis.checkin.parse]
+already = "result.success == false"
+
+# 积分到期（quota_overview）
+[platform.credits]
+enabled = true
+api = "credits"
+
+[platform.apis.credits]
+method = "GET"
+url = "https://console.bce.baidu.com/api/dumate/points/quota_overview?timezone=Asia/Shanghai&clientType=desktop&ignoreLoginBonus=true"
+auth = "raw"
+
+[platform.credits.parse]
+# 先取 subscription（订阅套餐），再取 incremental（增量积分）
+container = "result.subscription"
+
+[platform.credits.parse.fields]
+label = "packageType"
+credits = "totalPoints"
+expires_ts = "expireDate"
+
+# incremental 增量需二次解析：engine 支持多 container（见 dumate_crypto.credits 扩展）

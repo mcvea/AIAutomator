@@ -1,0 +1,19 @@
+# ===== 敏感配置（严禁提交） =====
+config/secrets.json
+
+# ===== 运行产物 =====
+logs/
+*.log
+.checkin.lock
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ===== 系统 =====
+Thumbs.db
+.DS_Store
+desktop.ini

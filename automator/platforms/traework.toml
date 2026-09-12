@@ -1,0 +1,22 @@
+# TraeWork（字节 AI 办公平台）平台定义
+# 登录态：storage.json 中 AES 加密信封（hooks/traework_crypto 解密）
+# 签到：hook_checkin 完整接管（解密 + 自动续期 + 状态/领取，见 hooks/traework_crypto）
+
+[platform]
+name = "traework"
+display = "TraeWork"
+daily_credits = 150
+enabled = true
+
+[platform.auth]
+type = "encrypted_json"
+path = "C:\\Users\\USER\\AppData\\Roaming\\TRAE SOLO CN\\User\\globalStorage\\storage.json"
+encrypted_field = "iCubeAuthInfo://icube.cloudide"
+token_field = "token"
+
+[platform.hooks]
+checkin = "traework_crypto"
+auth_decrypt = "traework_crypto"
+health = "traework_crypto"
+
+# 积分到期：签到积分 31 天滚动有效，无到期接口

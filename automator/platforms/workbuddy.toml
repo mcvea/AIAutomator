@@ -1,0 +1,39 @@
+# WorkBuddy（腾讯 AI 办公工作台）平台定义
+# 登录态：本机客户端明文 JSON 文件；接口：billing/meter
+
+[platform]
+name = "workbuddy"
+display = "WorkBuddy"
+daily_credits = 100
+enabled = true
+
+[platform.auth]
+type = "json_file"
+path = "C:\\Users\\USER\\AppData\\Local\\CodeBuddyExtension\\Data\\Public\\auth\\workbuddy-desktop.info"
+token_field = "auth.accessToken"
+expires_field = "auth.expiresAt"
+refresh_expires_field = "auth.refreshExpiresAt"
+
+[platform.apis.checkin_status]
+method = "POST"
+url = "https://{{auth.domain}}/v2/billing/meter/checkin-activity-status"
+body = "{}"
+auth = "bearer"
+
+[platform.apis.checkin_status.parse]
+already = "data.today_checked_in == true"
+
+[platform.apis.checkin_status.parse.fields]
+streak = "data.streak_days"
+
+[platform.apis.checkin]
+method = "POST"
+url = "https://{{auth.domain}}/v2/billing/meter/daily-checkin"
+body = "{}"
+auth = "bearer"
+
+[platform.apis.checkin.parse]
+already_contains = "已签到|already|重复"
+credits = "data.credits"
+
+# 积分到期：签到积分长期有效，不声明 credits 接口
