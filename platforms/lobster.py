@@ -282,3 +282,24 @@ class LobsterCheckin(BaseCheckin):
             })
         items.sort(key=lambda x: x["expires_at"])
         return items
+
+    # ---------- 账户总积分 ----------
+
+    def total(self) -> dict:
+        """查询账户总积分余额（profile-summary.totalCreditsRemaining）"""
+        try:
+            self.token = self._load_token()
+            sc, sb = self._api("/api/user/profile-summary?firstKeyfrom=official")
+            if not (isinstance(sb, dict) and sb.get("code") == 0):
+                return {"available": False, "total": None}
+            data = sb.get("data") or {}
+            total = data.get("totalCreditsRemaining")
+            if total is None:
+                return {"available": False, "total": None}
+            return {
+                "available": True,
+                "total": float(total),
+                "note": "",
+            }
+        except Exception:  # noqa: BLE001
+            return {"available": False, "total": None}

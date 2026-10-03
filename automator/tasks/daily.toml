@@ -1,6 +1,6 @@
-# 任务定义：daily（每日签到 + 健康检查 + 积分盘点）
+# 任务定义：daily（每日签到 + 健康检查 + 积分盘点 + 账户总积分）
 
 [tasks.daily]
 title = "AI 平台自动化日报"
-steps = ["checkin_all", "health_all", "credits_all"]
+steps = ["checkin_all", "health_all", "credits_all", "total_all"]
 report = "daily"

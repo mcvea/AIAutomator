@@ -56,3 +56,22 @@ def credits(platform: dict) -> list:
             continue
     items.sort(key=lambda x: x["expires_at"])
     return items
+
+
+def total(platform: dict) -> dict:
+    """账户总积分：profile-summary.totalCreditsRemaining"""
+    from platforms.lobster import LobsterCheckin
+    inst = LobsterCheckin()
+    try:
+        inst.token = inst._load_token()
+        sc, sb = inst._api("/api/user/profile-summary?firstKeyfrom=official")
+        if not (isinstance(sb, dict) and sb.get("code") == 0):
+            return {"platform": "LobsterAI", "available": False, "total": None}
+        data = sb.get("data") or {}
+        total = data.get("totalCreditsRemaining")
+        if total is None:
+            return {"platform": "LobsterAI", "available": False, "total": None}
+        return {"platform": "LobsterAI", "available": True,
+                "total": float(total), "note": ""}
+    except Exception:  # noqa: BLE001
+        return {"platform": "LobsterAI", "available": False, "total": None}

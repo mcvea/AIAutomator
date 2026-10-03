@@ -341,3 +341,25 @@ class DuMateCheckin(BaseCheckin):
         # 按最近到期排序
         items.sort(key=lambda x: x["expires_at"])
         return items
+
+    # ---------- 账户总积分 ----------
+
+    def total(self) -> dict:
+        """查询账户总积分余额（quota_overview.result.totalPoints）"""
+        try:
+            self._load_active_cookies()
+            sc, sb = self._api_call(
+                "/api/dumate/points/quota_overview?timezone=Asia/Shanghai"
+                "&clientType=desktop&ignoreLoginBonus=true",
+                "GET")
+            result = self._unwrap(sb)
+        except Exception:  # noqa: BLE001
+            return {"available": False, "total": None}
+        total = result.get("totalPoints")
+        if total is None:
+            return {"available": False, "total": None}
+        return {
+            "available": True,
+            "total": float(total),
+            "note": "",
+        }

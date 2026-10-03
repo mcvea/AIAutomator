@@ -113,3 +113,22 @@ def credits(platform: dict) -> list:
         return items
     except Exception:  # noqa: BLE001
         return []
+
+
+def total(platform: dict) -> dict:
+    """账户总积分：quota_overview.result.totalPoints"""
+    from platforms.dumate import DuMateCheckin
+    inst = DuMateCheckin()
+    try:
+        inst._load_active_cookies()
+        sc, sb = inst._api_call(
+            "/api/dumate/points/quota_overview?timezone=Asia/Shanghai&clientType=desktop&ignoreLoginBonus=true",
+            "GET")
+        result = inst._unwrap(sb)
+        total = result.get("totalPoints")
+        if total is None:
+            return {"platform": "百度搭子 DuMate", "available": False, "total": None}
+        return {"platform": "百度搭子 DuMate", "available": True,
+                "total": float(total), "note": ""}
+    except Exception:  # noqa: BLE001
+        return {"platform": "百度搭子 DuMate", "available": False, "total": None}

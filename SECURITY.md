@@ -8,6 +8,10 @@ AIAutomator 在设计上不持有任何持久化的用户凭证：
    - 仅从**本机官方桌面客户端**已有的登录态文件中读取（路径见 README）
    - 仅在本机内存中用于调用对应平台自己的官方接口
    - 不落盘、不上传、不写入日志、不发送到任何第三方服务
+   - WorkBuddy 5.6+ 将敏感字段升级为 `$wbEncrypted` 加密信封：本项目通过 WorkBuddy
+     客户端自身运行时（`platforms/wb_helper.js`，`ELECTRON_RUN_AS_NODE` 管道模式）
+     在内存中瞬时解密，解密出的明文与密钥**仅存在于子进程内存管道**，绝不落盘、
+     绝不写日志；解密失败时 Fail-Closed（直接阻断），绝不把畸形鉴权头发往服务端
 
 2. **通知凭证（如飞书 app_secret）**
    - 仅保存在本地 `config/secrets.json`（模板见 `secrets.example.json`），不上传到任何远程服务

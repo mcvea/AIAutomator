@@ -5,6 +5,7 @@ CLI 管理入口：
     python -m automator run daily [--dry]
     python -m automator health
     python -m automator credits
+    python -m automator totals
     python -m automator notify-test
 """
 import argparse
@@ -38,9 +39,15 @@ def _cmd_run(args):
     if out["report"]:
         print("\n" + "=" * 40)
         print(out["report"])
-        # 通知（读 secrets 通道配置）
+        # 通知（结构化 payload → interactive 卡片）
         if not args.no_notify:
-            notifier.notify(out["report"])
+            notifier.notify_daily({
+                "results": out["results"],
+                "totals": out.get("totals") or [],
+                "credits": out.get("credits") or [],
+                "healths": out.get("healths") or [],
+                "report": out["report"],
+            })
     return 0
 
 
@@ -68,6 +75,20 @@ def _cmd_credits(args):
             "⚠️" if it.get("days_left", 999) <= 30 else "🔸")
         print(f"{icon} {it.get('platform')}·{it.get('label')}：{it.get('credits'):g} 分 "
               f"到期 {it.get('expires_at')}（剩 {it.get('days_left')} 天）")
+    return 0
+
+
+def _cmd_totals(args):
+    from automator import engine, config as cfg
+    platforms = cfg.load_platforms(only_enabled=True)
+    for p in platforms:
+        t = engine.platform_total(p)
+        name = t.get("platform", p.get("name"))
+        if t.get("available") and t.get("total") is not None:
+            note = f"（{t.get('note')}）" if t.get("note") else ""
+            print(f"💰 {name}：{t['total']:g} 分{note}")
+        else:
+            print(f"➖ {name}：接口未提供")
     return 0
 
 
@@ -137,6 +158,9 @@ def main(argv=None):
 
     p_credits = sub.add_parser("credits", help="积分到期盘点")
     p_credits.set_defaults(func=_cmd_credits)
+
+    p_totals = sub.add_parser("totals", help="账户总积分查询")
+    p_totals.set_defaults(func=_cmd_totals)
 
     p_nt = sub.add_parser("notify-test", help="通知通道测试")
     p_nt.set_defaults(func=_cmd_notify_test)

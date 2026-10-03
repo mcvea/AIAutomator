@@ -70,3 +70,15 @@ class BaseCheckin(abc.ABC):
         无法查询到期信息的平台返回空列表。
         """
         return []
+
+    def total(self) -> dict:
+        """
+        账户总积分余额，可获取时返回，否则 available=False：
+        {
+            "platform": "平台名",
+            "available": True/False,
+            "total": 当前总积分或 None,
+            "note": "口径说明（如：本季活动累计）",
+        }
+        """
+        return {"available": False, "total": None}

@@ -295,6 +295,24 @@ def platform_credits(platform: dict) -> list:
         return []
 
 
+def platform_total(platform: dict) -> dict:
+    """单平台账户总积分（优先 hooks.total，失败降级为不可获取）"""
+    display = platform.get("display", platform.get("name", "?"))
+    total_hook = registry.load_hook(platform, "total")
+    if total_hook:
+        try:
+            r = getattr(total_hook, "total", total_hook)(platform)
+            if isinstance(r, dict):
+                r.setdefault("platform", display)
+                r.setdefault("available", False)
+                r.setdefault("total", None)
+                r.setdefault("note", "")
+                return r
+        except Exception as e:  # noqa: BLE001
+            print(f"[engine] {display} 总积分查询失败: {e}")
+    return {"platform": display, "available": False, "total": None, "note": ""}
+
+
 def _extract_credit_items(body, rules: dict, display: str) -> list:
     """按 credits.parse 规则提取积分到期列表"""
     if not isinstance(body, dict):
@@ -348,7 +366,7 @@ def _extract_credit_items(body, rules: dict, display: str) -> list:
 # ---------- 任务编排 ----------
 
 def run_task(task_name: str, dry: bool = False) -> dict:
-    """执行任务，返回 {results, healths, credits, report, task}"""
+    """执行任务，返回 {results, healths, credits, totals, report, task}"""
     tasks = cfg_mod.load_task_definitions()
     task = tasks.get(task_name)
     if not task:
@@ -357,7 +375,7 @@ def run_task(task_name: str, dry: bool = False) -> dict:
     steps = task.get("steps") or []
     platforms = cfg_mod.load_platforms(only_enabled=True)
 
-    results, healths, credits_all = [], [], []
+    results, healths, credits_all, totals = [], [], [], []
 
     for step in steps:
         if step == "checkin_all":
@@ -374,6 +392,9 @@ def run_task(task_name: str, dry: bool = False) -> dict:
         elif step == "credits_all":
             for p in platforms:
                 credits_all.extend(platform_credits(p))
+        elif step == "total_all":
+            for p in platforms:
+                totals.append(platform_total(p))
 
     credits_all.sort(key=lambda x: str(x.get("expires_at", "9999-12-31")))
 
@@ -382,7 +403,8 @@ def run_task(task_name: str, dry: bool = False) -> dict:
         from automator import reporter
         if task["report"] == "daily":
             report = reporter.build_daily_report(results, healths, credits_all,
+                                                 totals=totals,
                                                  title=task.get("title", "AI 平台自动化日报"))
 
     return {"results": results, "healths": healths, "credits": credits_all,
-            "report": report, "task": task_name}
+            "totals": totals, "report": report, "task": task_name}

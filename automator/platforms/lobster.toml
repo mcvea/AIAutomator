@@ -20,6 +20,7 @@ token_field = "accessToken"
 checkin = "lobster_checkin"
 health = "lobster_checkin"
 credits = "lobster_checkin"
+total = "lobster_checkin"
 
 # 积分到期（profile-summary creditItems）
 [platform.credits]

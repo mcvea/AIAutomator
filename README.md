@@ -9,7 +9,7 @@
 
 | 平台 | 每日积分 | 登录态来源 | 说明 |
 |------|---------|-----------|------|
-| **WorkBuddy**（腾讯） | 100/天，连签7天+1000 | 本机客户端 `auth.json` | 纯声明式接入示范 |
+| **WorkBuddy**（腾讯） | 100/天，连签7天+1000 | 本机客户端 `workbuddy-desktop.info` | hook 完整接管；5.6+ 加密凭据自动兼容（瞬时解密，零落盘） |
 | **MiniMax Code** | 400/天，第4/7天+1000 | `~/.minimax/` 登录态 | 本地签名算法复现 |
 | **TraeWork**（字节） | 150/天（会员200） | `storage.json` AES 信封 | 本地加密信封解析 + 自动续期 |
 | **百度搭子 DuMate** | 500/天 | `auth.json` 加密 cookies | 本地 cookies 解析 |
@@ -78,10 +78,11 @@ python -m automator resolve-uid --mobile 你的飞书手机号
 
 ```powershell
 python -m automator list               # 查看平台与任务
-python -m automator run daily          # 执行每日任务（签到+健康+积分+通知）
+python -m automator run daily          # 执行每日任务（签到+健康+积分+总积分+通知）
 python -m automator run daily --dry    # 只读试跑（不签到不通知）
 python -m automator health             # 登录态健康检查
 python -m automator credits            # 积分到期盘点
+python -m automator totals             # 账户总积分查询
 ```
 
 ### 4. 设置每日自动执行（Windows 计划任务，支持睡眠唤醒）
@@ -96,11 +97,13 @@ powershell -ExecutionPolicy Bypass -File .\setup_task.ps1
 
 ## 📦 日报内容
 
-每天飞书收到一份日报，包含：
+每天飞书收到一份 interactive 日报卡片，包含：
 
-- ✅ 各平台签到结果（成功/已签/失败 + 获得积分）
-- 💰 积分到期提醒（按最近到期排序，🚨 7 天内、⚠️ 30 天内）
-- 🔋 登录态健康（各平台 token 剩余天数，🚨 失效时醒目告警）
+- ✅ 各平台签到结果（成功/已签/失败 + 获得积分），有失败时卡片标题转红并附行动提示
+- 📊 汇总行（成功/已签/跳过/失败 + 本次新增积分）
+- 💰 账户总积分（各平台余额；接口未提供的平台如实标注）
+- 💰 积分到期提醒（分档裁剪：🚨 7 天内全列、⚠️ 30 天内限量、🔸 30 天外折叠）
+- 🔋 登录态健康（全部正常时折叠为一行，异常时逐行展开并告警）
 
 ## 🏗️ 项目结构
 
@@ -114,12 +117,13 @@ AIAutomator/
 │   ├── auth_store.py      # 登录态管理（json/sqlite/加密/cookies）
 │   ├── apiclient.py       # HTTP 客户端
 │   ├── parser.py          # 声明式响应解析
-│   ├── notifier.py        # 通知总线
+│   ├── notifier.py        # 通知总线（interactive 卡片 / text 兼容）
 │   ├── reporter.py        # 日报生成
 │   ├── paths.py           # 路径解析（环境变量/主目录）
 │   ├── platforms/         # 平台声明（TOML）+ hooks（复杂逻辑）
 │   └── tasks/             # 任务定义（TOML）
 ├── platforms/             # 平台实现（登录态读取/接口调用）
+│   └── wb_helper.js       # WorkBuddy 5.6+ 加密凭据瞬时解密助手（零落盘）
 ├── config/
 │   ├── user.example.toml  # 用户配置模板
 │   └── secrets.example.json  # 凭证模板（复制为 secrets.json）
@@ -134,6 +138,7 @@ AIAutomator/
 ## 🔒 安全说明
 
 - 本项目**不收集、不上传任何登录凭证**：所有登录态仅在本机读取，用于调用对应平台自己的签到接口
+- **WorkBuddy 5.6+ 加密凭据**通过 WorkBuddy 客户端自身运行时瞬时解密（`ELECTRON_RUN_AS_NODE` 管道模式），明文只存在于子进程内存管道，**不落盘、不打日志**
 - 签到接口均为各平台官方接口的幂等调用，重复执行只会提示"已领取"
 - 请仅对自己的账号使用，遵守各平台服务条款
 
