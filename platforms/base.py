@@ -82,3 +82,18 @@ class BaseCheckin(abc.ABC):
         }
         """
         return {"available": False, "total": None}
+
+    def balance(self) -> dict:
+        """
+        账户总余额（资源包额度），可获取时返回，否则 available=False：
+        {
+            "platform": "平台名",
+            "available": True/False,
+            "total": 资源包总量或 None,
+            "remain": 剩余量或 None,
+            "used": 已用量或 None,
+            "note": "口径说明（如：资源包额度）",
+        }
+        未实现余额查询的平台返回默认不可获取。
+        """
+        return {"available": False, "total": None, "remain": None, "used": None}

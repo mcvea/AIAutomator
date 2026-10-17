@@ -13,6 +13,7 @@ hook 约定（automator/platforms/hooks/<name>.py）：
     decrypt_cookies(enc_b64, key_file) -> list  cookies 解密（cookie_jar）
     signer(url, method, body, headers, token) -> headers  请求签名
     refresh(platform, cred) -> bool | str      token 续期（True/新token）
+    checkin/health/total 可返回 dict 或 list（list = 多账号逐账号结果，由引擎展开）
 """
 import os
 import sys
@@ -214,6 +215,8 @@ def platform_health(platform: dict) -> dict:
     if health_hook:
         try:
             r = getattr(health_hook, "health", health_hook)(platform)
+            if isinstance(r, list):  # 多账号：hook 可返回逐账号健康列表
+                return r
             if isinstance(r, dict) and r.get("platform"):
                 return r
         except Exception as e:  # noqa: BLE001
@@ -302,6 +305,14 @@ def platform_total(platform: dict) -> dict:
     if total_hook:
         try:
             r = getattr(total_hook, "total", total_hook)(platform)
+            if isinstance(r, list):  # 多账号：hook 可返回逐账号总积分列表
+                for item in r:
+                    if isinstance(item, dict):
+                        item.setdefault("platform", display)
+                        item.setdefault("available", False)
+                        item.setdefault("total", None)
+                        item.setdefault("note", "")
+                return r
             if isinstance(r, dict):
                 r.setdefault("platform", display)
                 r.setdefault("available", False)
@@ -365,6 +376,14 @@ def _extract_credit_items(body, rules: dict, display: str) -> list:
 
 # ---------- 任务编排 ----------
 
+def _collect(dst: list, r):
+    """结果收集：hook 可能返回单条 dict 或多账号 list"""
+    if isinstance(r, list):
+        dst.extend(r)
+    elif r is not None:
+        dst.append(r)
+
+
 def run_task(task_name: str, dry: bool = False) -> dict:
     """执行任务，返回 {results, healths, credits, totals, report, task}"""
     tasks = cfg_mod.load_task_definitions()
@@ -380,21 +399,21 @@ def run_task(task_name: str, dry: bool = False) -> dict:
     for step in steps:
         if step == "checkin_all":
             for p in platforms:
-                results.append(platform_checkin(p, dry=dry))
+                _collect(results, platform_checkin(p, dry=dry))
         elif step.startswith("checkin:"):
             pname = step.split(":", 1)[1]
             for p in platforms:
                 if p.get("name") == pname:
-                    results.append(platform_checkin(p, dry=dry))
+                    _collect(results, platform_checkin(p, dry=dry))
         elif step == "health_all":
             for p in platforms:
-                healths.append(platform_health(p))
+                _collect(healths, platform_health(p))
         elif step == "credits_all":
             for p in platforms:
                 credits_all.extend(platform_credits(p))
         elif step == "total_all":
             for p in platforms:
-                totals.append(platform_total(p))
+                _collect(totals, platform_total(p))
 
     credits_all.sort(key=lambda x: str(x.get("expires_at", "9999-12-31")))
 

@@ -64,7 +64,6 @@ class TraeWorkCheckin(BaseCheckin):
     AUTH_FILE_CANDIDATES = [
         os.path.join(os.environ.get("APPDATA", ""), "TRAE SOLO CN", "User",
                      "globalStorage", "storage.json"),
-
     ]
 
     def __init__(self, dry: bool = False):
@@ -398,6 +397,19 @@ class TraeWorkCheckin(BaseCheckin):
                 return True
         return False
 
+    # ---------- 账户总积分 ----------
+
+    def total(self) -> dict:
+        """TraeWork 账户剩余可用额度（与 balance() 同口径：usage_summary 剩余）"""
+        bal = self.balance()
+        if bal.get("available") and bal.get("remain") is not None:
+            return {
+                "available": True,
+                "total": bal["remain"],
+                "note": "",
+            }
+        return {"available": False, "total": None}
+
     # ---------- 登录态健康检查 ----------
 
     def health(self) -> dict:
@@ -438,4 +450,40 @@ class TraeWorkCheckin(BaseCheckin):
             "status": status,
             "days_left": days,
             "message": msg,
+        }
+
+    # ---------- 账户总余额 ----------
+
+    def balance(self) -> dict:
+        """查询 TraeWork 账户总余额（usage_summary：总量/已用/剩余）
+
+        接口：POST /trae/api/v2/pay/ide_user_ent_usage（body {"require_usage": true}）
+        口径来自社区项目 trae-work-checkin-plus（balance.js）与 Trae-AutoCheckin：
+          usage_summary.total_amount    账户总用量额度
+          usage_summary.consumed_amount 已消耗
+          remaining = total - consumed
+        """
+        try:
+            self._load_credential()
+            sc, sb = self._api_call(
+                "/trae/api/v2/pay/ide_user_ent_usage", body={"require_usage": True})
+            if self._is_auth_failure(sc, sb) and self._exchange_token():
+                sc, sb = self._api_call(
+                    "/trae/api/v2/pay/ide_user_ent_usage", body={"require_usage": True})
+        except Exception:  # noqa: BLE001
+            return {"available": False, "total": None, "remain": None, "used": None}
+
+        usage = (sb.get("usage_summary") or {}) if isinstance(sb, dict) else {}
+        total = usage.get("total_amount")
+        consumed = usage.get("consumed_amount")
+        if total is None:
+            return {"available": False, "total": None, "remain": None, "used": None}
+        total_f = float(total)
+        consumed_f = float(consumed or 0)
+        return {
+            "available": True,
+            "total": total_f,
+            "remain": round(total_f - consumed_f, 2),
+            "used": consumed_f,
+            "note": "",
         }

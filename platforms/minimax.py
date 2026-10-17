@@ -44,6 +44,18 @@ class MiniMaxCheckin(BaseCheckin):
     STATUS_PATH = "/minimax-cloud/api/v1/signin/status"
     CLAIM_PATH = "/minimax-cloud/api/v1/signin/claim"
 
+    # 官网账户中心（余额查询，旧 API 计费口径：按 token 计费账户恒为 0）
+    BALANCE_HOST = "https://www.minimaxi.com"
+    BALANCE_PATH = "/backend/account/token_plan_credit"
+    # 账户级 GroupId（客户端请求日志抓包值，58 次请求恒定唯一；换账号需更新）
+    GROUP_ID = "2042158654777463264"
+
+    # 客户端侧边栏"积分"真实数据源（OP 积分，2026-10-07 实测命中 17357）
+    # 接口：POST agent.minimax.cn/matrix/api/v1/commerce/get_membership_info
+    # 响应：op_credit_summary.total_remaining_amount（字符串，如 "17357.397"）
+    MEMBERSHIP_HOST = "https://agent.minimax.cn"
+    MEMBERSHIP_PATH = "/matrix/api/v1/commerce/get_membership_info"
+
     # 登录态文件候选路径
     # 注意：API 鉴权用的是 local-runtime.auth.json 的 JWT（auth.accessToken），
     #       auth.json 里的 mmoat_v5_ 为 OAuth token，仅作兜底
@@ -51,9 +63,6 @@ class MiniMaxCheckin(BaseCheckin):
         os.path.join(os.path.expanduser("~"), ".minimax", "local-runtime.auth.json"),
         os.path.join(os.path.expanduser("~"), ".minimax", "auth", "prod", "cn",
                      "mcode-public", "auth.json"),
-        # 兜底真实路径（应对环境变量重定向）
-
-
     ]
 
     # 设备参数字段顺序（严格对齐桌面端，影响 yy 签名）
@@ -86,7 +95,6 @@ class MiniMaxCheckin(BaseCheckin):
         """读取 cn-config（含 realUserID / deviceID）"""
         for path in (
             os.path.join(os.environ.get("APPDATA", ""), "minimax", "minimax-agent-cn-config.json"),
-
         ):
             if path and os.path.isfile(path):
                 try:
@@ -349,6 +357,104 @@ class MiniMaxCheckin(BaseCheckin):
             "message": msg,
             "credits": credits,
         }
+
+    # ---------- 账户总余额 ----------
+
+    def balance(self) -> dict:
+        """查询 MiniMax Code 侧边栏"积分"（OP 积分，与客户端显示一致）
+
+        主接口：POST agent.minimax.cn/matrix/api/v1/commerce/get_membership_info
+          带签名头 + token 头 + Authorization: Bearer <JWT>
+          响应 op_credit_summary.total_remaining_amount（如 "17357.397"）
+          —— 2026-10-07 实测与客户端侧边栏"积分 17,357"完全吻合。
+        备接口：GET www.minimaxi.com/backend/account/token_plan_credit
+          按 token 计费（无积分包）的账户三项均为 0，仅作回退。
+        """
+        try:
+            token = self._load_token()
+            if not token:
+                return {"available": False, "total": None, "remain": None, "used": None}
+
+            # 主路径：会员信息（OP 积分，侧边栏口径）
+            url, headers, body_str = self._sign_request(
+                self.MEMBERSHIP_PATH, token, "POST", {})
+            headers["Authorization"] = "Bearer " + token
+            headers["Origin"] = self.MEMBERSHIP_HOST
+            headers["Referer"] = self.MEMBERSHIP_HOST + "/"
+            req = urllib.request.Request(
+                self.MEMBERSHIP_HOST + url, data=body_str.encode("utf-8"),
+                headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="replace"))
+            base = data.get("base_resp") or {}
+            if isinstance(base, dict) and base.get("status_code") == 0:
+                ocs = data.get("op_credit_summary") or {}
+                remain_raw = ocs.get("total_remaining_amount")
+                if remain_raw is not None:
+                    remain = float(str(remain_raw))
+                    purchased = ocs.get("purchased_remaining_amount")
+                    purchased_f = float(str(purchased)) if purchased is not None else None
+                    note = ""
+                    if purchased_f and purchased_f > 0:
+                        note += "（含购买 + 赠送）"
+                    return {
+                        "available": True,
+                        "total": remain,
+                        "remain": remain,
+                        "used": purchased_f,
+                        "note": note,
+                    }
+        except Exception:  # noqa: BLE001
+            pass  # 回退到 token_plan_credit
+
+        # 备路径：API 计费中心（token_plan_credit）
+        try:
+            token = self._load_token()
+            if not token:
+                return {"available": False, "total": None, "remain": None, "used": None}
+            req = urllib.request.Request(
+                self.BALANCE_HOST + self.BALANCE_PATH, method="GET", headers={
+                    "X-Group-Id": self.GROUP_ID,
+                    "Token": token,
+                    "User-Agent": self._sign_request("", "", "GET", {})[1]["user-agent"],
+                    "Origin": "https://www.minimaxi.com",
+                    "Referer": "https://www.minimaxi.com/",
+                    "Accept": "application/json, text/plain, */*",
+                    "Content-Type": "application/json",
+                })
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        except Exception:  # noqa: BLE001
+            return {"available": False, "total": None, "remain": None, "used": None}
+
+        base = data.get("base_resp") or {}
+        if not (isinstance(base, dict) and base.get("status_code") == 0):
+            return {"available": False, "total": None, "remain": None, "used": None}
+        total = data.get("total_credits")
+        used = data.get("used_credits")
+        remain = data.get("remaining_credits")
+        if total is None and remain is None:
+            return {"available": False, "total": None, "remain": None, "used": None}
+        return {
+            "available": True,
+            "total": float(total or 0),
+            "remain": float(remain) if remain is not None else None,
+            "used": float(used) if used is not None else None,
+            "note": "积分包额度" if (total or 0) > 0 else "按 token 计费（无积分包）",
+        }
+
+    # ---------- 账户总积分 ----------
+
+    def total(self) -> dict:
+        """MiniMax Code 账户剩余可用积分（与 balance() 同口径：OP 积分）"""
+        bal = self.balance()
+        if bal.get("available") and bal.get("remain") is not None:
+            return {
+                "available": True,
+                "total": bal["remain"],
+                "note": bal.get("note", ""),
+            }
+        return {"available": False, "total": None}
 
     # ---------- 登录态健康检查 ----------
 

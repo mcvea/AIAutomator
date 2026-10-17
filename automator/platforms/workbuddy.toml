@@ -1,8 +1,10 @@
 # WorkBuddy（腾讯 AI 办公工作台）平台定义
-# 登录态：本机客户端 auth 文件（5.6+ 为 $wbEncrypted 加密信封，声明式 json_file
-#         无法处理，整体走 hooks/workbuddy_checkin 完整接管，同 LobsterAI 模式）
+# 登录态：优先多账号凭据库 auths/workbuddy-<uid>.json（wb_accounts.py 短信登录生成，
+#         脚本自动续期，逐账号展开为多行结果）；auths/ 为空时回退本机客户端
+#         auth 文件（5.6+ 为 $wbEncrypted 加密信封）。声明式 json_file 无法处理
+#         加密信封与多账号，整体走 hooks/workbuddy_checkin 完整接管，同 LobsterAI 模式
 # 接口：billing/meter；签到为幂等操作，重复调用只提示"已领过"，不扣积分
-# 登录态路径：%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info
+# 桌面登录态路径：%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info
 
 [platform]
 name = "workbuddy"

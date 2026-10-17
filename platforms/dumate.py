@@ -40,7 +40,6 @@ class DuMateCheckin(BaseCheckin):
 
     APP_DIR_CANDIDATES = [
         os.path.join(os.environ.get("APPDATA", ""), "qianfan-desktop-app"),
-
     ]
 
     def __init__(self, dry: bool = False):
@@ -345,7 +344,7 @@ class DuMateCheckin(BaseCheckin):
     # ---------- 账户总积分 ----------
 
     def total(self) -> dict:
-        """查询账户总积分余额（quota_overview.result.totalPoints）"""
+        """查询账户剩余可用积分（quota_overview.result.totalPoints - usedPoints）"""
         try:
             self._load_active_cookies()
             sc, sb = self._api_call(
@@ -356,10 +355,44 @@ class DuMateCheckin(BaseCheckin):
         except Exception:  # noqa: BLE001
             return {"available": False, "total": None}
         total = result.get("totalPoints")
+        used = result.get("usedPoints")
         if total is None:
             return {"available": False, "total": None}
+        total_f = float(total)
+        used_f = float(used or 0)
         return {
             "available": True,
-            "total": float(total),
+            "total": round(total_f - used_f, 2),
+            "note": "",
+        }
+
+    # ---------- 账户总余额 ----------
+
+    def balance(self) -> dict:
+        """查询 DuMate 账户总余额（quota_overview：总量/已用/剩余）
+
+        同一接口复用：result.totalPoints = 积分总量，
+        result.usedPoints = 已消耗，remaining = total - used。
+        """
+        try:
+            self._load_active_cookies()
+            sc, sb = self._api_call(
+                "/api/dumate/points/quota_overview?timezone=Asia/Shanghai"
+                "&clientType=desktop&ignoreLoginBonus=true",
+                "GET")
+            result = self._unwrap(sb)
+        except Exception:  # noqa: BLE001
+            return {"available": False, "total": None, "remain": None, "used": None}
+        total = result.get("totalPoints")
+        used = result.get("usedPoints")
+        if total is None:
+            return {"available": False, "total": None, "remain": None, "used": None}
+        total_f = float(total)
+        used_f = float(used or 0)
+        return {
+            "available": True,
+            "total": total_f,
+            "remain": round(total_f - used_f, 2),
+            "used": used_f,
             "note": "",
         }

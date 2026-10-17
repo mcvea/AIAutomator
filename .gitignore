@@ -9,6 +9,9 @@ config/user.local.toml
 *.pem
 *.key
 
+# ===== WorkBuddy 多账号凭据（等同账号密码，严禁提交） =====
+auths/
+
 # ===== 运行产物 =====
 logs/
 *.log

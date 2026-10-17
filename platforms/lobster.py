@@ -42,7 +42,6 @@ class LobsterCheckin(BaseCheckin):
 
     DB_CANDIDATES = [
         os.path.join(os.environ.get("APPDATA", ""), "LobsterAI", "lobsterai.sqlite"),
-
     ]
 
     def __init__(self, dry: bool = False):
@@ -303,3 +302,30 @@ class LobsterCheckin(BaseCheckin):
             }
         except Exception:  # noqa: BLE001
             return {"available": False, "total": None}
+
+    # ---------- 账户总余额 ----------
+
+    def balance(self) -> dict:
+        """查询 LobsterAI 账户总余额（profile-summary.totalCreditsRemaining）
+
+        Lobster 服务端仅提供剩余总额口径（与上游 lobsterai2api 一致），
+        无总量/已用拆分，故 total 与 remain 同值。
+        """
+        try:
+            self.token = self._load_token()
+            sc, sb = self._api("/api/user/profile-summary?firstKeyfrom=official")
+            if not (isinstance(sb, dict) and sb.get("code") == 0):
+                return {"available": False, "total": None, "remain": None, "used": None}
+            data = sb.get("data") or {}
+            remain = data.get("totalCreditsRemaining")
+            if remain is None:
+                return {"available": False, "total": None, "remain": None, "used": None}
+            return {
+                "available": True,
+                "total": float(remain),
+                "remain": float(remain),
+                "used": None,
+                "note": "",
+            }
+        except Exception:  # noqa: BLE001
+            return {"available": False, "total": None, "remain": None, "used": None}
