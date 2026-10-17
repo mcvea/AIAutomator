@@ -1,7 +1,11 @@
 # TraeWork（字节 AI 办公平台）平台定义
-# 登录态：storage.json 中 AES 加密信封（hooks/traework_crypto 解密）
+# 登录态：优先多账号凭据库 auths/traework-<uid>.json（trae_accounts.py 桌面导入或
+#         浏览器 OAuth 生成，脚本自动续期，逐账号展开为多行结果）；auths/ 为空时
+#         回退本机客户端 storage.json 加密信封（iCubeAuthInfo://icube.cloudide）。
+#         声明式 encrypted_json 无法处理加密信封与多账号，整体走
+#         hooks/traework_checkin 完整接管，同 WorkBuddy / LobsterAI 模式
 # 路径：%APPDATA%\TRAE SOLO CN\User\globalStorage\storage.json
-# 签到：hook_checkin 完整接管（解密 + 自动续期 + 状态/领取）
+# 签到：hook_checkin 完整接管（解密 + 设备证明续期 + 状态/领取）
 
 [platform]
 name = "traework"
@@ -9,15 +13,16 @@ display = "TraeWork"
 daily_credits = 150
 enabled = true
 
+[platform.hooks]
+checkin = "traework_checkin"
+health = "traework_checkin"
+total = "traework_checkin"
+auth_decrypt = "traework_crypto"
+
 [platform.auth]
 type = "encrypted_json"
 path = "%APPDATA%\\TRAE SOLO CN\\User\\globalStorage\\storage.json"
 encrypted_field = "iCubeAuthInfo://icube.cloudide"
 token_field = "token"
-
-[platform.hooks]
-checkin = "traework_crypto"
-auth_decrypt = "traework_crypto"
-health = "traework_crypto"
 
 # 积分到期：签到积分 31 天滚动有效，无到期接口

@@ -3,9 +3,15 @@
 TraeWork CN（字节 AI 办公平台）每日签到模块
 
 原理：
-  - 登录态：读取本机 TraeWork 桌面端 storage.json 中加密的登录信封
-    （iCubeAuthInfo://icube.cloudide，AES-128-CBC + SHA512 完整性校验），
-    解密得到 accessToken（社区逆向实现）
+  - 登录态支持两种来源：
+    - 多账号模式（推荐）：读取 auths/traework-<uid>.json 本地凭据文件
+      （由 trae_accounts.py 桌面导入或浏览器 OAuth 登录生成），临近过期
+      自动续期（设备证明版 ExchangeToken，refreshToken 轮换，见
+      platforms/trae_auth.py），一个文件一个账号，调度器经 account_specs()
+      展开为多个实例逐账号签到；
+    - 桌面模式（兜底）：auths/ 为空时读取本机 TraeWork 桌面端 storage.json
+      中加密的登录信封（iCubeAuthInfo://icube.cloudide，AES-128-CBC +
+      SHA512 完整性校验），解密得到 accessToken（社区逆向实现）。
   - 接口（POST，空 JSON body）：
       状态查询  {host}/trae/api/v2/ug/checkin_credits/status
       领取积分  {host}/trae/api/v2/ug/checkin_credits/claim
@@ -33,6 +39,11 @@ except ImportError:  # pragma: no cover
     AES = None
 
 from platforms.base import BaseCheckin
+
+try:  # 多账号凭据存储（缺失时退化为桌面单账号模式）
+    from platforms import trae_auth
+except Exception:  # noqa: BLE001
+    trae_auth = None
 
 
 class TraeWorkCheckin(BaseCheckin):
@@ -62,12 +73,22 @@ class TraeWorkCheckin(BaseCheckin):
     ])
     AUTH_KEY = "iCubeAuthInfo://icube.cloudide"
     AUTH_FILE_CANDIDATES = [
+        # 常规路径（计划任务运行时 APPDATA 为真实用户目录）
         os.path.join(os.environ.get("APPDATA", ""), "TRAE SOLO CN", "User",
                      "globalStorage", "storage.json"),
     ]
 
-    def __init__(self, dry: bool = False):
+    def __init__(self, dry: bool = False, account: dict | None = None):
         super().__init__(dry=dry)
+        # account: {"path": 凭据文件, "label": 展示名}；None = 桌面模式
+        self.account = account or None
+        self.auth_file = None
+        self.host = self.HOST
+        if self.account is not None:
+            self.auth_file = self.account.get("path")
+            label = str(self.account.get("label") or "").strip()
+            if label:
+                self.PLATFORM_NAME = f"TraeWork·{label}"
         self.token = ""
         self.device_id = ""
         self.user_id = ""
@@ -75,6 +96,25 @@ class TraeWorkCheckin(BaseCheckin):
         self.device_key_pem = ""
         self.device_pub_pem = ""
         self.machine_id = ""
+
+    # ---------- 多账号展开（供调度器使用） ----------
+
+    @classmethod
+    def account_specs(cls) -> list:
+        """多账号实例规格：auths/ 凭据文件优先；为空回退桌面单账号 [{}]。
+
+        返回 kwargs 列表（如 {"account": {...}}），调度器据此逐账号构造实例。
+        此处不做文件有效性校验，凭据错误延迟到运行期以失败的签到行呈现。
+        """
+        if trae_auth is None:
+            return [{}]
+        try:
+            accounts = trae_auth.list_accounts()
+        except Exception:  # noqa: BLE001 - 凭据目录不可读时回退桌面模式
+            accounts = []
+        if not accounts:
+            return [{}]
+        return [{"account": acc} for acc in accounts]
 
     # ---------- 解密登录态 ----------
 
@@ -114,6 +154,8 @@ class TraeWorkCheckin(BaseCheckin):
 
     def _load_credential(self):
         """读取并解密登录态，返回 (token, device_id, user_id)"""
+        if self.account is not None:
+            return self._load_credential_from_store()
         storage_path = self._locate_storage()
         with open(storage_path, "r", encoding="utf-8") as f:
             storage = json.load(f)
@@ -161,6 +203,45 @@ class TraeWorkCheckin(BaseCheckin):
 
         return self.token, self.device_id, self.user_id
 
+    def _load_credential_from_store(self):
+        """从 auths/ 多账号凭据文件读取（trae_accounts.py 生成）"""
+        if trae_auth is None:
+            raise RuntimeError("缺少 platforms/trae_auth.py，无法读取多账号凭据文件")
+        data = trae_auth.load_account(self.auth_file)
+        if data.get("disabled"):
+            note = data.get("note") or "凭据已失效"
+            raise RuntimeError(f"账号凭据已失效（{note}），请运行 trae_accounts.py add 重新登录")
+        # 只读模式零副作用；常规模式临近过期先续期（2 天余量，refreshToken 轮换落盘）
+        if not self.dry and trae_auth.is_expiring(data):
+            ok, msg = trae_auth.refresh_account(self.auth_file, data)
+            if ok:
+                data = trae_auth.load_account(self.auth_file)
+            elif trae_auth.is_expired(data):
+                raise RuntimeError(f"Token 已过期且自动续期失败：{msg}")
+        auth = data.get("auth") or {}
+        account = data.get("account") or {}
+        token = auth.get("accessToken")
+        if not token and not self.dry:
+            # 浏览器登录可能只回 refreshToken：先续期一次补齐
+            ok, msg = trae_auth.refresh_account(self.auth_file, data)
+            if ok:
+                data = trae_auth.load_account(self.auth_file)
+                auth = data.get("auth") or {}
+                token = auth.get("accessToken")
+            else:
+                raise RuntimeError(f"凭据缺少 accessToken 且自动续期失败：{msg}")
+        if not token:
+            raise RuntimeError("凭据文件中未找到 accessToken，请运行 trae_accounts.py add 重新登录")
+        self.token = str(token)
+        self.device_id = str(auth.get("deviceId") or "")
+        self.machine_id = str(auth.get("machineId") or "")
+        self.refresh_token = str(auth.get("refreshToken") or "")
+        self.device_key_pem = str(auth.get("privateKeyPem") or "")
+        self.device_pub_pem = str(auth.get("publicKeyPem") or "")
+        self.user_id = str(account.get("uid") or "")
+        self.host = str(auth.get("apiHost") or self.HOST)
+        return self.token, self.device_id, self.user_id
+
     # ---------- 自动续期（ExchangeToken） ----------
 
     _N = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551
@@ -179,7 +260,7 @@ class TraeWorkCheckin(BaseCheckin):
     def _ecdsa_sign(self, data: bytes) -> str:
         """设备私钥 ECDSA P-256/SHA-256 签名，返回 base64(DER)，含低 s 归一化"""
         key = ECC.import_key(self.device_key_pem)
-        signer = DSS.new(key, 'fips-186-3')
+        signer = DSS.new(key, 'fips-186-3', encoding='der')
         der = signer.sign(SHA256.new(data))
 
         # 解析 DER 提取 r/s
@@ -202,6 +283,8 @@ class TraeWorkCheckin(BaseCheckin):
 
     def _exchange_token(self) -> bool:
         """用 refreshToken + 设备私钥续期 token。成功返回 True"""
+        if self.account is not None:
+            return self._exchange_token_from_store()
         if not (self.refresh_token and self.device_key_pem and self.device_pub_pem and self.device_id):
             return False
 
@@ -258,6 +341,23 @@ class TraeWorkCheckin(BaseCheckin):
             self.refresh_token = res["RefreshToken"]
         return True
 
+    def _exchange_token_from_store(self) -> bool:
+        """账号模式：续期凭据文件中的 Token（refreshToken 轮换落盘）；成功返回 True"""
+        if trae_auth is None or self.account is None:
+            return False
+        if self.dry:
+            return False  # 只读模式零副作用
+        try:
+            ok, _msg = trae_auth.refresh_account(self.auth_file)
+        except Exception:  # noqa: BLE001
+            return False
+        if ok:
+            try:
+                self._load_credential_from_store()
+            except Exception:  # noqa: BLE001 - 内存未同步不影响已落盘的新凭据
+                pass
+        return ok
+
     # ---------- 网络请求 ----------
 
     def _api_call(self, path: str, body: dict = None, timeout: int = 30):
@@ -271,7 +371,7 @@ class TraeWorkCheckin(BaseCheckin):
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         }
         payload = json.dumps(body or {}).encode("utf-8")
-        req = urllib.request.Request(self.HOST + path, data=payload,
+        req = urllib.request.Request(self.host + path, data=payload,
                                      headers=headers, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -413,6 +513,8 @@ class TraeWorkCheckin(BaseCheckin):
     # ---------- 登录态健康检查 ----------
 
     def health(self) -> dict:
+        if self.account is not None:
+            return self._health_from_store()
         try:
             self._load_credential()
             storage_path = self._locate_storage()
@@ -445,6 +547,55 @@ class TraeWorkCheckin(BaseCheckin):
             msg = f"登录态剩余 {days} 天，请打开 TraeWork 桌面端登录刷新（脚本也会自动尝试续期）"
         elif days is not None:
             msg = f"登录态剩余 {days} 天（脚本可自动续期）"
+        return {
+            "platform": self.PLATFORM_NAME,
+            "status": status,
+            "days_left": days,
+            "message": msg,
+        }
+
+    def _health_from_store(self) -> dict:
+        """账号模式健康检查：以凭据文件中到期时间计算（token 约 14 天 / RT 半年）"""
+        relogin_hint = "请运行 trae_accounts.py add 重新登录"
+        if trae_auth is None:
+            return {
+                "platform": self.PLATFORM_NAME,
+                "status": "expired",
+                "days_left": 0,
+                "message": "缺少 platforms/trae_auth.py",
+            }
+        try:
+            data = trae_auth.load_account(self.auth_file)
+        except Exception as e:  # noqa: BLE001
+            return {
+                "platform": self.PLATFORM_NAME,
+                "status": "expired",
+                "days_left": 0,
+                "message": f"无法读取凭据文件：{e}",
+            }
+        if data.get("disabled"):
+            return {
+                "platform": self.PLATFORM_NAME,
+                "status": "expired",
+                "days_left": 0,
+                "message": f"账号凭据已失效，{relogin_hint}",
+            }
+        days = trae_auth.days_left(data)
+        status = "ok"
+        if trae_auth.is_expired(data):
+            status = "expired"
+            msg = f"登录态已过期（脚本会尝试自动续期），{relogin_hint}"
+        elif days is not None and days < 7:
+            status = "warn"
+            msg = f"登录态剩余 {days} 天（脚本将自动续期）"
+        elif days is not None:
+            msg = f"登录态剩余 {days} 天（脚本可自动续期）"
+        else:
+            msg = "登录态正常（到期时间未知）"
+        r_days = trae_auth.refresh_days_left(data)
+        if r_days is not None and r_days < 14 and status == "ok":
+            status = "warn"
+            msg += f"（refreshToken 剩余 {r_days} 天，届时需重新登录）"
         return {
             "platform": self.PLATFORM_NAME,
             "status": status,

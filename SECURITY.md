@@ -3,7 +3,7 @@
 ## 凭证与敏感数据处理方式
 
 AIAutomator 默认只在内存中使用本机登录态、不持久化任何用户凭证；唯一的例外是
-可选启用的 WorkBuddy 多账号模式（见第 4 条）：
+可选启用的多账号模式（WorkBuddy / TraeWork，见第 4 条）：
 
 1. **登录态（各平台 token / cookies）**
    - 仅从**本机官方桌面客户端**已有的登录态文件中读取（路径见 README）
@@ -26,11 +26,13 @@ AIAutomator 默认只在内存中使用本机登录态、不持久化任何用�
    - `logs/`、`*.log`、`__pycache__/` 均已被 `.gitignore` 排除
    - 提交前请用 `git status` 确认没有意外跟踪的敏感文件
 
-4. **WorkBuddy 多账号凭据（可选功能）**
-   - 通过 `wb_accounts.py` 短信登录生成的凭据保存在本机
-     `auths/workbuddy-<uid>.json`（已被 `.gitignore` 排除）
-   - 内容含 accessToken / refreshToken，**等同账号密码**：脚本仅在本机使用
-     （自动续期 + 调用官方签到接口），不上传、不写入日志；请勿提交、勿拷贝外发
+4. **多账号凭据（WorkBuddy / TraeWork，可选功能）**
+   - 通过 `wb_accounts.py` 短信登录 / `trae_accounts.py` 桌面导入或浏览器 OAuth
+     生成的凭据保存在本机 `auths/workbuddy-<uid>.json`、`auths/traework-<uid>.json`
+     （已被 `.gitignore` 排除）
+   - 内容含 accessToken / refreshToken（TraeWork 另含设备密钥），**等同账号密码**：
+     脚本仅在本机使用（自动续期 + 调用官方签到接口），不上传、不写入日志；
+     请勿提交、勿拷贝外发
    - 未启用多账号功能时不存在该目录，行为与默认单账号模式完全一致
 
 ## 发现安全问题
