@@ -1,6 +1,12 @@
 # MiniMax Code（MiniMax Agent 桌面端）平台定义
-# 登录态：~\.minimax\local-runtime.auth.json 的 JWT
-# 签到：hook_checkin 完整接管（续期 + 签名 + 状态判断，见 hooks/minimax_signer）
+# 登录态：客户端 OAuth 凭据 ~/.minimax/auth/prod/cn/mcode-public/auth.json
+#         （records.<动态键>.accessToken = mmoat_*，寿命 1 小时；脚本用
+#          refreshToken 自动续期并写回客户端凭据文件）
+#         兜底：旧会话 JWT ~/.minimax/local-runtime.auth.json
+# 签到：hook_checkin 完整接管（OAuth Bearer 鉴权 + 签名 + 状态判断，
+#       见 hooks/minimax_signer；账号总积分同样需要 Bearer + 签名）
+# 说明：OAuth 凭据的 records 键名带随机后缀，声明式 json_file 无法表达，
+#       故 checkin / health / total 全部走 hook（同 WorkBuddy / TraeWork 模式）
 
 [platform]
 name = "minimax"
@@ -8,13 +14,14 @@ display = "MiniMax Code"
 daily_credits = 400
 enabled = true
 
+[platform.hooks]
+checkin = "minimax_signer"
+health = "minimax_signer"
+total = "minimax_signer"
+
 [platform.auth]
 type = "json_file"
 path = "~\\.minimax\\local-runtime.auth.json"
 token_field = "auth.accessToken"
-
-[platform.hooks]
-checkin = "minimax_signer"
-health = "minimax_signer"
 
 # 积分到期：签到积分滚动有效，无到期接口

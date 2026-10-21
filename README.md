@@ -10,7 +10,7 @@
 | 平台 | 每日积分 | 登录态来源 | 说明 |
 |------|---------|-----------|------|
 | **WorkBuddy**（腾讯） | 100/天，连签7天+1000 | 可选多账号凭据库 `auths/`（`wb_accounts.py` 短信登录），缺省回退本机客户端 | hook 完整接管；5.6+ 加密凭据自动兼容（瞬时解密，零落盘）；多账号自动续期 |
-| **MiniMax Code** | 400/天，第4/7天+1000 | `~/.minimax/` 登录态 | 本地签名算法复现 |
+| **MiniMax Code** | 400/天，第4/7天+1000 | `~/.minimax/` OAuth 登录态（自动续期） | 本地签名算法复现；OAuth Bearer 鉴权，access token 1 小时寿命、脚本自动续期 |
 | **TraeWork**（字节） | 150/天（会员200） | 可选多账号凭据库 `auths/`（`trae_accounts.py` 桌面导入 / 浏览器登录），缺省回退本机客户端 | hook 完整接管；AES 信封解析 + 设备证明续期；多账号自动续期 |
 | **百度搭子 DuMate** | 500/天 | `auth.json` 加密 cookies | 本地 cookies 解析 |
 | **LobsterAI**（网易有道） | 100/天（每日积分礼） | SQLite 登录态 | 三步接口流程 |
@@ -38,7 +38,7 @@ pip install pycryptodome
 | 平台 | 客户端 | 登录态文件位置（自动识别） |
 |------|--------|--------------------------|
 | WorkBuddy | WorkBuddy 桌面端 | `%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info` |
-| MiniMax Code | MiniMax Code 桌面端 | `~\.minimax\local-runtime.auth.json` |
+| MiniMax Code | MiniMax Code 桌面端 | `~\.minimax\auth\prod\cn\mcode-public\auth.json`（OAuth 凭据）<br>`~\.minimax\local-runtime.auth.json`（旧会话 JWT，兜底） |
 | TraeWork | TraeWork 桌面端 | `%APPDATA%\TRAE SOLO CN\User\globalStorage\storage.json` |
 | 百度搭子 | 百度搭子桌面端 | `%APPDATA%\qianfan-desktop-app\auth.json` + `.cookie-key` |
 | LobsterAI | LobsterAI 桌面端 | `%APPDATA%\LobsterAI\lobsterai.sqlite` |
@@ -46,6 +46,9 @@ pip install pycryptodome
 > 登录态文件路径均使用环境变量（`%APPDATA%` / `%LOCALAPPDATA%` / `~`），
 > 任何 Windows 用户路径都通用，无需修改代码。
 > 各平台登录态有效期约 1~2 个月，失效时打开客户端登录一次即可刷新（签到日报会提前预警）。
+> MiniMax Code 例外：桌面端现行认证为 **OAuth Bearer**，access token 寿命仅 1 小时，
+> 脚本会用 refresh token 自动续期并写回客户端自己的凭据文件（与客户端共用同一把跨进程锁），
+> 因此无需人工干预；客户端未运行也能正常签到。
 
 #### WorkBuddy 多账号（可选）
 
@@ -179,6 +182,8 @@ AIAutomator/
 - **WorkBuddy 5.6+ 加密凭据**通过 WorkBuddy 客户端自身运行时瞬时解密（`ELECTRON_RUN_AS_NODE` 管道模式），明文只存在于子进程内存管道，**不落盘、不打日志**
 - WorkBuddy 多账号模式下，凭据（access/refresh token）仅保存在本机 `auths/`（已 gitignore），用于脚本自动续期；同样不上传、不写日志
 - TraeWork 多账号模式下，凭据（access/refresh token 与设备密钥）仅保存在本机 `auths/`（已 gitignore），用于脚本自动续期；同样不上传、不写日志
+- **MiniMax Code** 走桌面端现行 OAuth 认证：access token 寿命仅 1 小时，脚本会用 refresh token 自动续期，并**原地写回桌面客户端自己的凭据文件**（`~/.minimax/auth/prod/cn/mcode-public/auth.json` 与 `auth-state.json`），写回时与客户端共用同一把跨进程锁；除此之外不新增任何持久化副本
+- 设备参数（device_id 等）会从桌面客户端的**本地请求日志**中只读解析，用于复现客户端签名；不写入、不上传任何日志内容
 - 签到接口均为各平台官方接口的幂等调用，重复执行只会提示"已领取"
 - 请仅对自己的账号使用，遵守各平台服务条款
 

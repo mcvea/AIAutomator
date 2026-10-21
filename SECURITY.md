@@ -13,6 +13,21 @@ AIAutomator 默认只在内存中使用本机登录态、不持久化任何用�
      客户端自身运行时（`platforms/wb_helper.js`，`ELECTRON_RUN_AS_NODE` 管道模式）
      在内存中瞬时解密，解密出的明文与密钥**仅存在于子进程内存管道**，绝不落盘、
      绝不写日志；解密失败时 Fail-Closed（直接阻断），绝不把畸形鉴权头发往服务端
+   - **MiniMax Code 例外（唯一的原地写回）**：桌面端现行认证为 OAuth Bearer，access
+     token 寿命仅 1 小时，签到前必须续期。脚本用 refresh token 换新 access token 后，
+     会**原地更新桌面客户端自己的凭据文件**
+     （`~/.minimax/auth/prod/cn/mcode-public/auth.json` 与 `auth-state.json`），
+     以免客户端下次启动时拿到已轮换掉的旧 refresh token。写回过程：
+     - 与客户端共用同一把跨进程锁（`<auth.lock>.lock` 目录，30s stale 判定），
+       避免与客户端并发刷新互相覆盖；
+     - 只改写 accessToken / refreshToken / expiresAtMs / generation 四个字段，
+       不触碰客户端的其他状态；
+     - 不产生任何凭据副本，不上传、不写日志。
+     若写回失败，脚本仅在当次运行中使用内存中的新 token，不影响签到。
+   - **本地日志只读解析**：MiniMax Code 的设备参数（device_id / uuid / desktop_version）
+     需与桌面客户端一致，脚本会**只读**解析桌面客户端本地的请求日志
+     （`%APPDATA%\MiniMax\logs\api-*.log`）取这些参数；只读取 query 参数，
+     不读取、不复制、不上传日志中的任何其他内容
 
 2. **通知凭证（如飞书 app_secret）**
    - 仅保存在本地 `config/secrets.json`（模板见 `secrets.example.json`），不上传到任何远程服务
