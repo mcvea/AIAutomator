@@ -49,6 +49,10 @@ pip install pycryptodome
 > MiniMax Code 例外：桌面端现行认证为 **OAuth Bearer**，access token 寿命仅 1 小时，
 > 脚本会用 refresh token 自动续期并写回客户端自己的凭据文件（与客户端共用同一把跨进程锁），
 > 因此无需人工干预；客户端未运行也能正常签到。
+> 设备参数（device_id 等）默认从桌面客户端的本地请求日志自动发现，仓库里不保存任何
+> 机器标识；若日志不可读，可用环境变量 `MINIMAX_DEVICE_ID` / `MINIMAX_UUID` 覆盖。
+> 备用的「按 token 计费」余额接口需要账号级 GroupId，用 `MINIMAX_GROUP_ID` 提供
+> （不设置则跳过该接口，主接口 OP 积分不受影响）。
 
 #### WorkBuddy 多账号（可选，默认关闭）
 

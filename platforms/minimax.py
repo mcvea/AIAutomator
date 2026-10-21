@@ -85,9 +85,10 @@ class MiniMaxCheckin(BaseCheckin):
     # 官网账户中心（余额查询，旧 API 计费口径：按 token 计费账户恒为 0）
     BALANCE_HOST = "https://www.minimaxi.com"
     BALANCE_PATH = "/backend/account/token_plan_credit"
-    # 账户级 GroupId（示例值：抓包自开发者账号；换账号需替换为本人客户端的抓包值）
-    # 仅用于备用的「按 token 计费」余额接口，主接口（OP 积分）不依赖此值
-    GROUP_ID = "2042158654777463264"
+    # 账户级 GroupId：仅备用的「按 token 计费」余额接口需要（主接口 OP 积分不依赖）。
+    # 该值与账号绑定，**不写死在代码里**：按需设置环境变量 MINIMAX_GROUP_ID
+    # （取值来自本人桌面客户端请求日志的 X-Group-Id 头）；未设置则跳过该备用接口。
+    GROUP_ID = os.environ.get("MINIMAX_GROUP_ID", "").strip()
 
     # 客户端侧边栏"积分"真实数据源（OP 积分，2026-10-07 实测命中 17357）
     # 接口：POST agent.minimax.cn/matrix/api/v1/commerce/get_membership_info
@@ -104,11 +105,11 @@ class MiniMaxCheckin(BaseCheckin):
         "op_ticket", "screen_width", "screen_height",
     ]
 
-    # 设备身份兜底值（真实值来自客户端请求日志；_discover_client_params 会自动覆盖）
-    # device_id / uuid 会随客户端升级、重装而变化，日志可读时一律以日志为准，
-    # 下列常量仅在读不到客户端日志时兜底
-    DEFAULT_UUID = "d56f2e80-c269-4b9a-912f-0afefd61ae0e"
-    DEFAULT_DEVICE_ID = "57309777"
+    # 设备身份：与具体机器绑定，**不写死在代码里**。
+    # 首选从桌面客户端请求日志自动发现（_discover_client_params，随客户端升级自适应）；
+    # 读不到日志时可用环境变量 MINIMAX_UUID / MINIMAX_DEVICE_ID 覆盖。
+    DEFAULT_UUID = os.environ.get("MINIMAX_UUID", "").strip()
+    DEFAULT_DEVICE_ID = os.environ.get("MINIMAX_DEVICE_ID", "").strip()
     DEFAULT_DESKTOP_VERSION = "3.1.4"
     DEFAULT_VERSION_CODE = "22201"
 
@@ -386,6 +387,10 @@ class MiniMaxCheckin(BaseCheckin):
             "version_code": self.DEFAULT_VERSION_CODE,
             "user_id": self.user_id,
         }
+        if not self.device_params.get("device_id"):
+            self._log("未找到客户端设备参数（device_id 为空）：请确认已安装并登录 MiniMax Code "
+                      "客户端且产生了请求日志，或设置环境变量 MINIMAX_DEVICE_ID / MINIMAX_UUID",
+                      "WARN")
         return self.device_params
 
     # ---------- 签名工具（移植自社区逆向实现） ----------
@@ -708,7 +713,10 @@ class MiniMaxCheckin(BaseCheckin):
         except Exception:  # noqa: BLE001
             pass  # 回退到 token_plan_credit
 
-        # 备路径：API 计费中心（token_plan_credit）
+        # 备路径：API 计费中心（token_plan_credit）——需账号级 GroupId，
+        # 未设置环境变量 MINIMAX_GROUP_ID 时跳过（按 token 计费的账户该接口本就恒为 0）
+        if not self.GROUP_ID:
+            return {"available": False, "total": None, "remain": None, "used": None}
         try:
             req = urllib.request.Request(
                 self.BALANCE_HOST + self.BALANCE_PATH, method="GET", headers={
