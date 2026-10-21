@@ -190,7 +190,6 @@ class DuMateCheckin(BaseCheckin):
         info = self._unwrap(sb)
 
         sign_days = info.get("signInDays") or []
-        total_points = info.get("totalPoints")
         total_times = info.get("totalTimes")
 
         # 判定今日是否已领取：signInDays 含今天的日期字符串
@@ -198,8 +197,6 @@ class DuMateCheckin(BaseCheckin):
         today = datetime.date.today().isoformat()
         if any(str(d).startswith(today) for d in sign_days):
             msg = "今日已签到"
-            if total_points:
-                msg += f"（累计 {total_points} 积分）"
             return {
                 "platform": self.PLATFORM_NAME,
                 "success": True,
@@ -211,8 +208,6 @@ class DuMateCheckin(BaseCheckin):
         # 只读模式
         if self.dry:
             msg = "只读模式：今日尚未签到，可正常执行"
-            if total_points:
-                msg += f"（当前累计 {total_points} 积分）"
             return {
                 "platform": self.PLATFORM_NAME,
                 "success": True,
@@ -238,7 +233,7 @@ class DuMateCheckin(BaseCheckin):
                 "platform": self.PLATFORM_NAME,
                 "success": True,
                 "status": "success",
-                "message": f"签到成功（累计 {info2.get('totalPoints')} 积分）",
+                "message": f"签到成功，获得 {self.DAILY_CREDITS} 积分",
                 "credits": self.DAILY_CREDITS,
             }
 

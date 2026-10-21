@@ -5,10 +5,6 @@
 """
 from datetime import datetime
 
-_URGENT_DAYS = 7       # 7 天内到期：全部列出
-_SOON_DAYS = 30        # 30 天内到期：最多列 _SOON_MAX_ROWS 条，超出折叠
-_SOON_MAX_ROWS = 8
-
 
 def _icon(status: str) -> str:
     return {"success": "✅", "already": "✅", "failed": "❌",
@@ -55,15 +51,27 @@ def _fail_hint(results: list) -> str:
     return f"❌ {names} 签到失败，请打开对应客户端检查登录态；脚本会每日自动重试"
 
 
-def _total_block(totals: list) -> str:
-    """账户总积分概览：可获取的平台展示余额，其余如实标注"""
+def _total_block(totals: list, prev_totals: dict | None = None) -> str:
+    """账户总积分概览：可获取的平台展示余额与较上次快照的变化，其余如实标注"""
     if not totals:
         return ""
+    has_prev = bool(prev_totals)
     lines = []
     for t in totals:
         name = t.get("platform", "?")
         if t.get("available") and t.get("total") is not None:
             line = f"　{name}：{_format_num(t['total'])} 分"
+            if has_prev:
+                prev = prev_totals.get(name)
+                if prev is None:
+                    line += "（新增）"
+                else:
+                    delta = round(float(t["total"]) - float(prev), 2)
+                    if delta == 0:
+                        line += "（较昨日持平）"
+                    else:
+                        sign = "+" if delta > 0 else ""
+                        line += f"（较昨日 {sign}{_format_num(delta)}）"
             if t.get("note"):
                 line += f"（{t['note']}）"
         else:
@@ -72,56 +80,6 @@ def _total_block(totals: list) -> str:
     return "💰 账户总积分\n" + "\n".join(lines)
 
 
-def _group_expiry(items: list) -> list:
-    """同平台+同标签+同到期日聚合为一行，减少重复行"""
-    groups = {}
-    order = []
-    for it in items:
-        key = (it.get("platform", ""), it.get("label", ""), it.get("expires_at", ""))
-        if key not in groups:
-            groups[key] = {"credits": 0.0, "n": 0, "days_left": it.get("days_left", 0)}
-            order.append(key)
-        groups[key]["credits"] += float(it.get("credits", 0) or 0)
-        groups[key]["n"] += 1
-    rows = []
-    for k in order:
-        plat, label, exp = k
-        g = groups[k]
-        suffix = f"（{g['n']} 笔）" if g["n"] > 1 else ""
-        rows.append(
-            f"{plat}·{label}{suffix}：{_format_num(g['credits'])} 分，"
-            f"{exp} 到期（剩 {g['days_left']} 天）")
-    return rows
-
-
-def _expiry_block(credits: list) -> str:
-    """积分到期提醒：7 天内全列、30 天内限量、30 天外折叠"""
-    if not credits:
-        return ""
-    urgent = [it for it in credits if it.get("days_left", 999) <= _URGENT_DAYS]
-    soon = [it for it in credits if _URGENT_DAYS < it.get("days_left", 999) <= _SOON_DAYS]
-    later = [it for it in credits if it.get("days_left", 999) > _SOON_DAYS]
-
-    body = []
-    for row in _group_expiry(urgent):
-        body.append(f"🚨 {row}")
-    soon_rows = _group_expiry(soon)
-    for row in soon_rows[:_SOON_MAX_ROWS]:
-        body.append(f"⚠️ {row}")
-    if len(soon_rows) > _SOON_MAX_ROWS:
-        body.append(f"⚠️ … 其余 {len(soon_rows) - _SOON_MAX_ROWS} 组积分 30 天内到期")
-    if later:
-        recent = min(later, key=lambda x: x.get("days_left", 999))
-        body.append(
-            f"🔸 另有 {len(later)} 笔将于 {recent.get('expires_at')} 之后"
-            f"陆续到期（最近剩 {recent.get('days_left')} 天）")
-    if not body:
-        return ""
-
-    head = "💰 积分到期提醒"
-    if urgent:
-        head += "：7 天内到期请及时使用！"
-    return head + "\n" + "\n".join(body)
 
 
 def _health_block(healths: list) -> str:
@@ -139,9 +97,12 @@ def _health_block(healths: list) -> str:
 
 
 def build_daily_report(results: list, healths: list = None, credits: list = None,
-                       totals: list = None,
+                       totals: list = None, prev_totals: dict | None = None,
                        title: str = "AI 平台自动化日报") -> str:
-    """组装日报文本（签到明细 → 汇总 → 总积分 → 到期提醒 → 健康）"""
+    """组装日报文本（签到明细 → 汇总 → 总积分（含环比）→ 健康）
+
+    积分到期数据仍会采集（写入日志），但日报不再展示该区块——与生产仓库日报口径一致。
+    """
     healths = healths or []
     credits = credits or []
     totals = totals or []
@@ -158,13 +119,9 @@ def build_daily_report(results: list, healths: list = None, credits: list = None
         summary += "\n" + hint
     text += f"\n\n📊 {summary}"
 
-    tb = _total_block(totals)
+    tb = _total_block(totals, prev_totals)
     if tb:
         text += "\n\n" + tb
-
-    eb = _expiry_block(credits)
-    if eb:
-        text += "\n\n" + eb
 
     hb = _health_block(healths)
     if hb:

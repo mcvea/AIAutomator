@@ -135,8 +135,6 @@ class LobsterCheckin(BaseCheckin):
 
         if state.get("claimedToday"):
             msg = "今日已签到"
-            if state.get("claimedCredits"):
-                msg += f"（{state.get('claimedCredits'):g} 积分，累计 {state.get('claimedDays')} 天）"
             return {
                 "platform": self.PLATFORM_NAME,
                 "success": True,

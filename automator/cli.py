@@ -47,6 +47,7 @@ def _cmd_run(args):
                 "credits": out.get("credits") or [],
                 "healths": out.get("healths") or [],
                 "report": out["report"],
+                "prev_totals": out.get("prev_totals") or {},
             })
     return 0
 

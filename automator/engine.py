@@ -15,7 +15,9 @@ hook 约定（automator/platforms/hooks/<name>.py）：
     refresh(platform, cred) -> bool | str      token 续期（True/新token）
     checkin/health/total 可返回 dict 或 list（list = 多账号逐账号结果，由引擎展开）
 """
+import json
 import os
+import re
 import sys
 import time
 
@@ -23,6 +25,49 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from automator import config as cfg_mod  # noqa: E402
 from automator import apiclient, auth_store, parser, registry  # noqa: E402
+
+# ---------- 账户总积分快照（供日报环比） ----------
+
+_LOGS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+_TOTALS_FILE_RE = re.compile(r"^totals-(\d{4}-\d{2}-\d{2})\.json$")
+
+
+def _load_prev_totals() -> dict:
+    """读取最近一次（非今天）的账户总积分快照，用于日报环比；无则返回 {}"""
+    try:
+        today_str = time.strftime("%Y-%m-%d")
+        latest = None
+        for fn in os.listdir(_LOGS_DIR):
+            m = _TOTALS_FILE_RE.match(fn)
+            if m and m.group(1) != today_str and (latest is None or m.group(1) > latest):
+                latest = m.group(1)
+        if not latest:
+            return {}
+        path = os.path.join(_LOGS_DIR, f"totals-{latest}.json")
+        with open(path, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return {}
+        return {k: float(v) for k, v in data.items() if isinstance(v, (int, float))}
+    except Exception:  # noqa: BLE001 - 快照缺失/损坏不影响主流程
+        return {}
+
+
+def _save_totals(totals: list):
+    """保存今日账户总积分快照（供次日日报环比）；仅记录可获取的平台"""
+    try:
+        snapshot = {t["platform"]: float(t["total"]) for t in totals
+                    if t.get("available") and t.get("total") is not None}
+        if not snapshot:
+            return
+        os.makedirs(_LOGS_DIR, exist_ok=True)
+        path = os.path.join(_LOGS_DIR, f"totals-{time.strftime('%Y-%m-%d')}.json")
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, path)
+    except Exception:  # noqa: BLE001 - 快照写入失败不影响主流程
+        pass
 
 
 # ---------- 工具 ----------
@@ -417,13 +462,20 @@ def run_task(task_name: str, dry: bool = False) -> dict:
 
     credits_all.sort(key=lambda x: str(x.get("expires_at", "9999-12-31")))
 
+    # 账户总积分环比：读取上次快照；非只读模式下写入今日快照
+    prev_totals = _load_prev_totals()
+    if not dry:
+        _save_totals(totals)
+
     report = ""
     if task.get("report"):
         from automator import reporter
         if task["report"] == "daily":
             report = reporter.build_daily_report(results, healths, credits_all,
                                                  totals=totals,
+                                                 prev_totals=prev_totals,
                                                  title=task.get("title", "AI 平台自动化日报"))
 
     return {"results": results, "healths": healths, "credits": credits_all,
-            "totals": totals, "report": report, "task": task_name}
+            "totals": totals, "prev_totals": prev_totals,
+            "report": report, "task": task_name}
