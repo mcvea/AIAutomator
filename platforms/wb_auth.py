@@ -73,6 +73,24 @@ HTTP_TIMEOUT = 30
 
 # ---------- 目录与文件 ----------
 
+# 多账号是**可选功能**：默认由「凭据库里有没有凭据」决定——
+# 有凭据则逐账号签到，没有则回退桌面客户端单账号模式。
+# 需要强制单账号（或强制多账号）时用环境变量显式指定：
+#   AI_CHECKIN_MULTI_ACCOUNT=0 → 强制单账号（忽略凭据库）
+#   AI_CHECKIN_MULTI_ACCOUNT=1 → 强制多账号（凭据库为空时仍回退单账号）
+MULTI_ACCOUNT_ENV = "AI_CHECKIN_MULTI_ACCOUNT"
+
+
+def multi_account_enabled(default: bool = True) -> bool:
+    """多账号是否启用；未设置环境变量时沿用 default"""
+    raw = os.environ.get(MULTI_ACCOUNT_ENV, "").strip().lower()
+    if raw in ("0", "false", "off", "no"):
+        return False
+    if raw in ("1", "true", "on", "yes"):
+        return True
+    return default
+
+
 def auths_dir() -> str:
     """凭据目录路径（默认 <项目根>/auths/，WB_AUTHS_DIR 可覆盖）"""
     override = os.environ.get(_ENV_AUTHS_DIR)

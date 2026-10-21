@@ -41,13 +41,17 @@ AIAutomator 默认只在内存中使用本机登录态、不持久化任何用�
    - `logs/`、`*.log`、`__pycache__/` 均已被 `.gitignore` 排除
    - 提交前请用 `git status` 确认没有意外跟踪的敏感文件
 
-4. **多账号凭据（WorkBuddy / TraeWork，可选功能）**
+4. **多账号凭据（WorkBuddy / TraeWork，可选功能，默认关闭）**
    - 通过 `wb_accounts.py` 短信登录 / `trae_accounts.py` 桌面导入或浏览器 OAuth
      生成的凭据保存在本机 `auths/workbuddy-<uid>.json`、`auths/traework-<uid>.json`
      （已被 `.gitignore` 排除）
    - 内容含 accessToken / refreshToken（TraeWork 另含设备密钥），**等同账号密码**：
      脚本仅在本机使用（自动续期 + 调用官方签到接口），不上传、不写入日志；
      请勿提交、勿拷贝外发
+   - **默认关闭**：平台定义 `automator/platforms/*.toml` 里的 `multi_account = false`
+     时完全不读凭据库，走本机客户端单账号登录态；改为 `true` 才启用多账号；
+     凭据库为空时仍自动回退单账号。也可用环境变量
+     `AI_CHECKIN_MULTI_ACCOUNT=0/1` 临时强制单账号/多账号
    - 未启用多账号功能时不存在该目录，行为与默认单账号模式完全一致
 
 ## 发现安全问题

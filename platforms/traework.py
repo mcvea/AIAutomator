@@ -15,12 +15,17 @@ TraeWork CN（字节 AI 办公平台）每日签到模块
   - 接口（POST，空 JSON body）：
       状态查询  {host}/trae/api/v2/ug/checkin_credits/status
       领取积分  {host}/trae/api/v2/ug/checkin_credits/claim
-  - 鉴权头：Authorization: Cloud-IDE-JWT {token}，x-device-id: {数字设备id}
+  - 鉴权头：Authorization: Cloud-IDE-JWT {token}，x-device-id: {数字设备id}。
+    claim 存在设备级风控（9074/每日一设备）：本机客户端已注册的真设备号走
+    轻量头直签；非注册设备号（浏览器 OAuth 合成设备等）改发全套客户端头 +
+    uid 派生 15 位稳定伪设备号（trae-mate device_map 算法），两账号各持
+    独立设备号互不抢占每日签到名额。
 
 登录态文件（Windows）：
   %APPDATA%\\TRAE SOLO CN\\User\\globalStorage\\storage.json
 """
 import base64
+import gzip
 import hashlib
 import json
 import os
@@ -28,6 +33,8 @@ import platform
 import time
 import urllib.error
 import urllib.request
+import uuid
+import zlib
 
 try:
     from Crypto.Cipher import AES
@@ -73,10 +80,10 @@ class TraeWorkCheckin(BaseCheckin):
     ])
     AUTH_KEY = "iCubeAuthInfo://icube.cloudide"
     AUTH_FILE_CANDIDATES = [
-        # 常规路径（计划任务运行时 APPDATA 为真实用户目录）
         os.path.join(os.environ.get("APPDATA", ""), "TRAE SOLO CN", "User",
                      "globalStorage", "storage.json"),
     ]
+    _client_device_cache: dict = {}
 
     def __init__(self, dry: bool = False, account: dict | None = None):
         super().__init__(dry=dry)
@@ -105,8 +112,11 @@ class TraeWorkCheckin(BaseCheckin):
 
         返回 kwargs 列表（如 {"account": {...}}），调度器据此逐账号构造实例。
         此处不做文件有效性校验，凭据错误延迟到运行期以失败的签到行呈现。
+        多账号为可选功能：设 AI_CHECKIN_MULTI_ACCOUNT=0 可强制单账号模式。
         """
         if trae_auth is None:
+            return [{}]
+        if not trae_auth.multi_account_enabled():
             return [{}]
         try:
             accounts = trae_auth.list_accounts()
@@ -360,28 +370,130 @@ class TraeWorkCheckin(BaseCheckin):
 
     # ---------- 网络请求 ----------
 
+    @classmethod
+    def _local_client_device_id(cls) -> str:
+        """本机客户端注册设备号（storage.json 的 iCubeAuthInfo://icube-dc:<数字> 键），进程内缓存"""
+        if "v" in cls._client_device_cache:
+            return cls._client_device_cache["v"]
+        value = ""
+        try:
+            for path in cls.AUTH_FILE_CANDIDATES:
+                if path and os.path.isfile(path):
+                    with open(path, "r", encoding="utf-8") as f:
+                        storage = json.load(f)
+                    for k in storage:
+                        if k.startswith("iCubeAuthInfo://icube-dc:"):
+                            did = k.split(":", 3)[-1]
+                            if did.isdigit():
+                                value = did
+                                break
+                    break
+        except Exception:  # noqa: BLE001
+            value = ""
+        cls._client_device_cache["v"] = value
+        return value
+
+    @classmethod
+    def _derive_bytes(cls, seed: str, salt: str, n: int) -> bytes:
+        """trae-mate device_map 确定性派生（SHA-256 流，4 字节计数器，对齐其测试向量）"""
+        data = f"{salt}:{seed}".encode("utf-8")
+        out = b""
+        i = 0
+        while len(out) < n:
+            out += hashlib.sha256(data + i.to_bytes(4, "big")).digest()
+            i += 1
+        return out[:n]
+
+    @classmethod
+    def _pseudo_device_id(cls, uid: str) -> str:
+        return "".join(str(b % 10) for b in cls._derive_bytes(uid, "devid", 16)[:15])
+
+    @classmethod
+    def _pseudo_market_uuid(cls, uid: str) -> str:
+        bs = bytearray(cls._derive_bytes(uid, "market", 16))
+        bs[6] = (bs[6] & 0x0F) | 0x40
+        bs[8] = (bs[8] & 0x3F) | 0x80
+        h = bytes(bs).hex()
+        return f"{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
+
+    @classmethod
+    def _pseudo_session_id(cls, uid: str) -> str:
+        return cls._derive_bytes(uid, "sess", 32).hex()
+
+    def _use_pseudo_device(self) -> bool:
+        """claim 设备风控：多账号凭据设备号非本机客户端注册号 → 走伪设备头"""
+        if self.account is None:
+            return False
+        client_did = self._local_client_device_id()
+        if not client_did:
+            return True
+        return (self.device_id or "") != client_did
+
+    def _request_headers(self) -> dict:
+        token = self.token
+        auth = (token if str(token).startswith("Cloud-IDE-JWT ")
+                else f"Cloud-IDE-JWT {token}")
+        if not self._use_pseudo_device():
+            return {
+                "content-type": "application/json",
+                "authorization": auth,
+                "x-device-id": self.device_id or "",
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            }
+        uid = str(self.user_id or "")
+        return {
+            "content-type": "application/json",
+            "authorization": auth,
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate",
+            "accept-language": "zh-CN",
+            "user-agent": "VSCode 1.107.1 (TRAE SOLO CN)",
+            "x-market-client-id": "VSCode 1.107.1",
+            "x-market-user-id": self._pseudo_market_uuid(uid),
+            "x-user-region": "CN",
+            "x-device-id": self._pseudo_device_id(uid),
+            "x-lgw-req-sdk-type": "3",
+            "package-type": "stable_cn",
+            "x-lscbd-aid": "787976",
+            "x-lscbd-platform": "windows",
+            "app-version": "0.1.45",
+            "x-tt-trace-id": "00-%s-01" % uuid.uuid4().hex[:16],
+            "vscode-sessionid": self._pseudo_session_id(uid),
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "no-cors",
+            "sec-fetch-site": "none",
+            "x-request-id": str(uuid.uuid4()),
+        }
+
+    @staticmethod
+    def _decode_body(resp) -> str:
+        raw = resp.read()
+        ce = (getattr(resp, "headers", None).get("Content-Encoding", "")
+              if getattr(resp, "headers", None) else "")
+        if ce == "gzip":
+            raw = gzip.decompress(raw)
+        elif ce == "deflate":
+            try:
+                raw = zlib.decompress(raw)
+            except zlib.error:
+                raw = zlib.decompress(raw, -zlib.MAX_WBITS)
+        return raw.decode("utf-8", errors="replace")
+
     def _api_call(self, path: str, body: dict = None, timeout: int = 30):
         """调用 Trae 接口，返回 (http_status, json)"""
-        token = self.token
-        headers = {
-            "content-type": "application/json",
-            "authorization": token if str(token).startswith("Cloud-IDE-JWT ")
-            else f"Cloud-IDE-JWT {token}",
-            "x-device-id": self.device_id or "",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        }
+        headers = self._request_headers()
         payload = json.dumps(body or {}).encode("utf-8")
         req = urllib.request.Request(self.host + path, data=payload,
                                      headers=headers, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                raw = resp.read().decode("utf-8", errors="replace")
+                raw = self._decode_body(resp)
                 try:
                     return resp.status, json.loads(raw)
                 except Exception:  # noqa: BLE001
                     return resp.status, {"raw": raw[:300]}
         except urllib.error.HTTPError as e:
-            raw = e.read().decode("utf-8", errors="replace")
+            raw = self._decode_body(e)
             try:
                 return e.code, json.loads(raw)
             except Exception:  # noqa: BLE001

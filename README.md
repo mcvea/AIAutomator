@@ -50,26 +50,28 @@ pip install pycryptodome
 > 脚本会用 refresh token 自动续期并写回客户端自己的凭据文件（与客户端共用同一把跨进程锁），
 > 因此无需人工干预；客户端未运行也能正常签到。
 
-#### WorkBuddy 多账号（可选）
+#### WorkBuddy 多账号（可选，默认关闭）
 
-WorkBuddy 支持在同一台机器托管多个账号（每个手机号一个独立会话凭据），
-每日逐个签到、自动续期（refreshToken 轮换），日报按账号独立成行：
+多账号是**可选功能，默认关闭**——不启用时完全走本机 WorkBuddy 客户端的单账号登录态，
+与单账号模式行为一致。启用需两步：
 
 ```powershell
+# 1) 打开 automator/platforms/workbuddy.toml，把 multi_account = false 改为 true
+# 2) 添加账号（每个手机号一个独立会话凭据）
 python wb_accounts.py add              # 短信验证码登录，添加/更新一个账号
 python wb_accounts.py list             # 查看账号（UID/昵称/剩余天数/状态）
 python wb_accounts.py refresh          # 手动续期全部账号
 python wb_accounts.py checkin-test     # 只读模式逐账号试跑
 ```
 
+启用后每日逐个签到、自动续期（refreshToken 轮换），日报按账号独立成行。
 凭据保存在本机 `auths/workbuddy-<uid>.json`（已 gitignore，**等同账号密码**：
-勿提交、勿外发）。未添加任何账号时自动使用上表的本机客户端登录态，
-行为与单账号模式完全一致。
+勿提交、勿外发）；凭据库为空时仍自动回退本机客户端登录态。
 
-#### TraeWork 多账号（可选）
+#### TraeWork 多账号（可选，默认关闭）
 
-TraeWork 支持在同一台机器托管多个账号，两种获取方式任选（可混用不同账号），
-每日逐个签到、自动续期（refreshToken 轮换 + 设备证明签名），日报按账号独立成行：
+TraeWork 同样支持可选的多账号模式，启用方式与 WorkBuddy 一致
+（`automator/platforms/traework.toml` 里 `multi_account = true`）：
 
 ```powershell
 python trae_accounts.py add            # 桌面导入：取本机客户端当前登录账号
@@ -79,10 +81,16 @@ python trae_accounts.py refresh        # 手动续期全部账号
 python trae_accounts.py checkin-test   # 只读模式逐账号试跑
 ```
 
-凭据保存在本机 `auths/traework-<uid>.json`（已 gitignore，**等同账号密码**：
-勿提交、勿外发）。浏览器登录的回调端口固定 `127.0.0.1:17388`（官网靠探测该端口
-判断"客户端在线"，登录时需先退出 Trae 客户端）。未添加任何账号时自动使用上表的
-本机客户端登录态，行为与单账号模式完全一致。
+浏览器登录的回调端口固定 `127.0.0.1:17388`（官网靠探测该端口
+判断"客户端在线"，登录时需先退出 Trae 客户端）。凭据保存在本机
+`auths/traework-<uid>.json`（已 gitignore，**等同账号密码**：勿提交、勿外发）。
+
+> 每个账号会生成**独立的设备身份**（ECDSA P-256 密钥对 + 随机设备号），
+> 因为签到领取按设备维度限流（每设备每日一次），多账号共用同一设备会触发
+> "当前设备今日已经签到"拦截。
+
+> 也可以用环境变量临时切换，无需改 TOML：
+> `AI_CHECKIN_MULTI_ACCOUNT=0` 强制单账号，`=1` 强制多账号（未设置时按 TOML 开关）。
 
 ### 2. 配置飞书通知（可选）
 

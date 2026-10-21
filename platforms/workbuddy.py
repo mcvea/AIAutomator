@@ -80,8 +80,11 @@ class WorkBuddyCheckin(BaseCheckin):
 
         返回 kwargs 列表（如 {"account": {...}}），调度器据此逐账号构造实例。
         此处不做文件有效性校验，凭据错误延迟到运行期以失败的签到行呈现。
+        多账号为可选功能：设 AI_CHECKIN_MULTI_ACCOUNT=0 可强制单账号模式。
         """
         if wb_auth is None:
+            return [{}]
+        if not wb_auth.multi_account_enabled():
             return [{}]
         try:
             accounts = wb_auth.list_accounts()

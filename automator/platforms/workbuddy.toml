@@ -11,6 +11,9 @@ name = "workbuddy"
 display = "WorkBuddy"
 daily_credits = 100
 enabled = true
+# 多账号为可选功能，默认关闭（走本机客户端单账号模式）。
+# 改为 true 后：auths/ 里有凭据则逐账号签到，没有则仍回退单账号。
+multi_account = false
 
 [platform.hooks]
 checkin = "workbuddy_checkin"

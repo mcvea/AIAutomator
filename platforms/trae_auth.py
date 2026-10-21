@@ -17,9 +17,11 @@ TraeWork 多账号凭据存储 / Token 自动续期 / 登录取凭据模块
          "account": {"uid": "", "nickname": ""},
          "disabled": false, "source": "desktop-import" | "browser-oauth"
        }
-   说明：DeviceID / 设备密钥对（ECDSA P-256）来自本机 Trae 客户端设备身份
-   （storage.json 的 iCubeAuthInfo://icube-dc:<id>），续期时用于构造 DeviceProof
-   签名；多账号共用同一设备身份（社区多账号方案同款做法）。
+   说明：DeviceID / 设备密钥对（ECDSA P-256）续期时用于构造 DeviceProof 签名。
+   设备来源：desktop-import 取本机客户端设备（storage.json 的
+   iCubeAuthInfo://icube-dc:<id>，单账号适用）；browser-oauth 每账号生成
+   全新独立设备——签到领取按设备维度限流（每设备每日一次），共享设备会触发
+   "当前设备今日已经签到"拦截（详见 FAQ-0006）。
 
 2. Token 自动续期（设备证明版 ExchangeToken）：
    POST {apiHost}/trae/api/v3/oauth/ExchangeToken
@@ -198,6 +200,24 @@ def save_account(path: str, data: dict):
 
 
 # ---------- 账号一览（供调度器/CLI 展示，不含敏感字段） ----------
+
+# 多账号是**可选功能**：默认由「凭据库里有没有凭据」决定——
+# 有凭据则逐账号签到，没有则回退桌面客户端单账号模式。
+# 需要强制单账号（或强制多账号）时用环境变量显式指定：
+#   AI_CHECKIN_MULTI_ACCOUNT=0 → 强制单账号（忽略凭据库）
+#   AI_CHECKIN_MULTI_ACCOUNT=1 → 强制多账号（凭据库为空时仍回退单账号）
+MULTI_ACCOUNT_ENV = "AI_CHECKIN_MULTI_ACCOUNT"
+
+
+def multi_account_enabled(default: bool = True) -> bool:
+    """多账号是否启用；未设置环境变量时沿用 default"""
+    raw = os.environ.get(MULTI_ACCOUNT_ENV, "").strip().lower()
+    if raw in ("0", "false", "off", "no"):
+        return False
+    if raw in ("1", "true", "on", "yes"):
+        return True
+    return default
+
 
 def _uid_from_filename(path: str) -> str:
     m = re.search(r"traework-(.+)\.json$", os.path.basename(path))
@@ -421,6 +441,28 @@ def device_identity(storage: dict | None = None, storage_path: str | None = None
         "public_key_pem": pub,
         "private_key_pem": (dev.get("privateKeyPEM") or "").strip(),
         "from": storage_path or "storage.json",
+    }
+
+
+def generate_device() -> dict | None:
+    """生成全新设备身份（EC P-256 密钥对 + 随机 16 位 device_id）。
+
+    浏览器 OAuth 添加账号默认使用：签到领取按设备维度限流（每设备每日
+    一次），多账号共享客户端设备会触发"当前设备今日已经签到"拦截；
+    每账号独立设备互不影响（详见 FAQ-0006）。
+    """
+    if ECC is None:
+        return None
+    key = ECC.generate(curve="P-256")
+    priv_pem = key.export_key(format="PEM")
+    pub_pem = key.public_key().export_key(format="PEM")
+    device_id = str(secrets.randbelow(9 * 10 ** 15) + 10 ** 15)
+    return {
+        "device_id": device_id,
+        "machine_id": "",
+        "public_key_pem": pub_pem,
+        "private_key_pem": priv_pem,
+        "from": "generated",
     }
 
 
@@ -1037,11 +1079,14 @@ def login_via_browser(timeout: int = CALLBACK_LOGIN_TIMEOUT, open_browser: bool 
     if AES is None:
         return None, "缺少 pycryptodome 依赖，请执行: pip install pycryptodome"
 
+    # 优先环境变量覆盖（device_identity 的 from="env"）；默认生成全新独立
+    # 设备——多账号共享客户端设备会被"当前设备今日已经签到"按设备拦截
     device = device_identity()
+    if not device or device.get("from") != "env":
+        device = generate_device()
     if not device:
-        return None, ("未找到设备身份（storage.json 的 icube-dc 设备密钥）。\n"
-                      "   请先安装并登录一次 Trae 客户端；或设置 TRAE_DEVICE_ID + "
-                      "TRAE_DEVICE_PUB_PEM 环境变量。")
+        return None, ("无法生成设备身份（缺少 pycryptodome 依赖）；\n"
+                      "   或设置 TRAE_DEVICE_ID + TRAE_DEVICE_PUB_PEM 环境变量。")
 
     trace_id = secrets.token_hex(16)
     verifier, challenge = pkce_pair()
