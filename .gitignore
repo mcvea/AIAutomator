@@ -12,6 +12,9 @@ config/user.local.toml
 # ===== WorkBuddy 多账号凭据（等同账号密码，严禁提交） =====
 auths/
 
+# ===== 扫描生成的平台定义（写着本机凭据路径，逐机不同，提交会泄露用户名） =====
+automator/platforms/*.local.toml
+
 # ===== 运行产物 =====
 logs/
 *.log

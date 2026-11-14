@@ -439,7 +439,7 @@ def run_task(task_name: str, dry: bool = False) -> dict:
     steps = task.get("steps") or []
     platforms = cfg_mod.load_platforms(only_enabled=True)
 
-    results, healths, credits_all, totals = [], [], [], []
+    results, healths, credits_all, totals, monitors = [], [], [], [], []
 
     for step in steps:
         if step == "checkin_all":
@@ -459,6 +459,13 @@ def run_task(task_name: str, dry: bool = False) -> dict:
         elif step == "total_all":
             for p in platforms:
                 _collect(totals, platform_total(p))
+        elif step == "monitor_all":
+            # 本机其他 AI 平台登录态巡检（只读凭据，不联网、不签到）
+            try:
+                import platform_scan
+                monitors.extend(platform_scan.monitor_rows())
+            except Exception as e:  # noqa: BLE001
+                print(f"[巡检] 跳过：{type(e).__name__}: {e}")
 
     credits_all.sort(key=lambda x: str(x.get("expires_at", "9999-12-31")))
 
@@ -474,8 +481,9 @@ def run_task(task_name: str, dry: bool = False) -> dict:
             report = reporter.build_daily_report(results, healths, credits_all,
                                                  totals=totals,
                                                  prev_totals=prev_totals,
+                                                 monitors=monitors,
                                                  title=task.get("title", "AI 平台自动化日报"))
 
     return {"results": results, "healths": healths, "credits": credits_all,
-            "totals": totals, "prev_totals": prev_totals,
+            "totals": totals, "prev_totals": prev_totals, "monitors": monitors,
             "report": report, "task": task_name}

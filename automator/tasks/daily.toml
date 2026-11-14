@@ -2,5 +2,5 @@
 
 [tasks.daily]
 title = "AI 平台自动化日报"
-steps = ["checkin_all", "health_all", "credits_all", "total_all"]
+steps = ["checkin_all", "health_all", "credits_all", "total_all", "monitor_all"]
 report = "daily"
