@@ -55,6 +55,7 @@ except Exception:  # noqa: BLE001
 
 class TraeWorkCheckin(BaseCheckin):
     PLATFORM_NAME = "TraeWork"
+    CLIENT_NAME = "TraeWork"   # 供子类（Trae CN）覆盖提示文案
     DAILY_CREDITS = 150
 
     HOST = "https://api.trae.cn"
@@ -139,7 +140,7 @@ class TraeWorkCheckin(BaseCheckin):
 
         envelope = base64.b64decode(encoded)
         if len(envelope) <= 38 or envelope[:6] != self.HEADER:
-            raise ValueError("TraeWork 登录信封格式不正确")
+            raise ValueError(f"{self.CLIENT_NAME} 登录信封格式不正确")
 
         random_key = envelope[6:38]
         secret = bytes(a ^ b for a, b in zip(self.LEFT_SECRET, self.RIGHT_SECRET))
@@ -153,14 +154,15 @@ class TraeWorkCheckin(BaseCheckin):
             raise ValueError("解密内容过短")
         expected_digest, payload = plaintext[:64], plaintext[64:]
         if self._sha512(payload) != expected_digest:
-            raise ValueError("TraeWork 登录态完整性校验失败")
+            raise ValueError(f"{self.CLIENT_NAME} 登录态完整性校验失败")
         return json.loads(payload.decode("utf-8"))
 
     def _locate_storage(self) -> str:
         for path in self.AUTH_FILE_CANDIDATES:
             if path and os.path.isfile(path):
                 return path
-        raise FileNotFoundError("未找到 TraeWork 登录态，请先打开 TraeWork 桌面端登录一次")
+        raise FileNotFoundError(
+            f"未找到 {self.CLIENT_NAME} 登录态，请先打开 {self.CLIENT_NAME} 桌面端登录一次")
 
     def _load_credential(self):
         """读取并解密登录态，返回 (token, device_id, user_id)"""
@@ -172,12 +174,12 @@ class TraeWorkCheckin(BaseCheckin):
 
         encrypted = storage.get(self.AUTH_KEY)
         if not encrypted:
-            raise RuntimeError("storage.json 中未找到登录态，请登录 TraeWork")
+            raise RuntimeError(f"storage.json 中未找到登录态，请登录 {self.CLIENT_NAME}")
 
         auth = self._decrypt_auth_info(encrypted)
         token = (auth.get("token") or "").strip()
         if not token:
-            raise RuntimeError("登录态中未找到 token，请重新登录 TraeWork")
+            raise RuntimeError(f"登录态中未找到 token，请重新登录 {self.CLIENT_NAME}")
 
         # 提取数字设备 id（iCubeAuthInfo://icube-dc:<numeric> 键）
         device_id = ""
@@ -546,7 +548,7 @@ class TraeWorkCheckin(BaseCheckin):
                     "platform": self.PLATFORM_NAME,
                     "success": False,
                     "status": "failed",
-                    "message": "鉴权失败且自动续期未生效，请打开 TraeWork 桌面端重新登录",
+                    "message": f"鉴权失败且自动续期未生效，请打开 {self.CLIENT_NAME} 桌面端重新登录",
                     "credits": 0,
                 }
 
@@ -571,7 +573,7 @@ class TraeWorkCheckin(BaseCheckin):
                     "platform": self.PLATFORM_NAME,
                     "success": False,
                     "status": "failed",
-                    "message": "领取时鉴权失败且自动续期未生效，请打开 TraeWork 桌面端重新登录",
+                    "message": f"领取时鉴权失败且自动续期未生效，请打开 {self.CLIENT_NAME} 桌面端重新登录",
                     "credits": 0,
                 }
 
@@ -656,7 +658,8 @@ class TraeWorkCheckin(BaseCheckin):
         msg = "登录态正常"
         if days is not None and days < 7:
             status = "warn"
-            msg = f"登录态剩余 {days} 天，请打开 TraeWork 桌面端登录刷新（脚本也会自动尝试续期）"
+            msg = (f"登录态剩余 {days} 天，请打开 {self.CLIENT_NAME} 桌面端登录刷新"
+                       f"（脚本也会自动尝试续期）")
         elif days is not None:
             msg = f"登录态剩余 {days} 天（脚本可自动续期）"
         return {

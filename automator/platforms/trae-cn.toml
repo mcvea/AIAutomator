@@ -1,0 +1,28 @@
+# Trae CN（字节 Trae IDE 国内版）平台定义
+# 登录态：%APPDATA%\Trae CN\User\globalStorage\storage.json
+#         键 iCubeAuthInfo://icube.cloudide（AES 信封：token / refreshToken / expiredAt）
+# 签到：hook 完整接管（信封解密 + 设备证明续期 + 状态查询 + 幂等领取）
+# 说明：与 TraeWork 同族同协议，差异仅在客户端目录与平台名，故实现直接继承
+
+[platform]
+name = "trae-cn"
+display = "Trae CN"
+vendor = "字节跳动"
+category = "AI IDE"
+daily_credits = 100
+enabled = true
+multi_account = false
+
+[platform.hooks]
+checkin = "trae_cn_checkin"
+health = "trae_cn_checkin"
+total = "trae_cn_checkin"
+auth_decrypt = "trae_cn_checkin"
+
+[platform.auth]
+type = "encrypted_json"
+path = "%APPDATA%\\Trae CN\\User\\globalStorage\\storage.json"
+encrypted_field = "iCubeAuthInfo://icube.cloudide"
+token_field = "token"
+
+# 积分：31 天滚动有效，无到期接口；总积分走 usage_summary
