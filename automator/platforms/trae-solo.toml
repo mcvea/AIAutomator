@@ -1,0 +1,28 @@
+# TRAE SOLO CN（字节 Trae SOLO 国内版）平台定义
+# 登录态：%APPDATA%\TRAE SOLO CN\User\globalStorage\storage.json
+#         键 iCubeAuthInfo://icube.cloudide（AES 信封：token / refreshToken / expiredAt）
+# 签到：hook 完整接管（信封解密 + 设备证明续期 + 状态查询 + 幂等领取）
+# 证据：客户端 product.json 的 account.trae.normal = https://api.trae.cn，
+#       out/main.js 内含 /trae/api/v2/ug/checkin_credits/{status,claim}
+# 说明：与 TraeWork / Trae CN 同族同协议，差异仅在客户端目录与平台名
+
+[platform]
+name = "trae-solo"
+display = "TRAE SOLO CN"
+vendor = "字节跳动"
+category = "AI IDE"
+daily_credits = 0
+enabled = true
+multi_account = false
+
+[platform.hooks]
+checkin = "trae_solo_checkin"
+health = "trae_solo_checkin"
+total = "trae_solo_checkin"
+auth_decrypt = "trae_solo_checkin"
+
+[platform.auth]
+type = "encrypted_json"
+path = "%APPDATA%\\TRAE SOLO CN\\User\\globalStorage\\storage.json"
+encrypted_field = "iCubeAuthInfo://icube.cloudide"
+token_field = "token"

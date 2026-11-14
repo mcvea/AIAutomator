@@ -8,7 +8,7 @@ from datetime import datetime
 
 def _icon(status: str) -> str:
     return {"success": "✅", "already": "✅", "failed": "❌",
-            "skipped": "➖", "ok": "✅", "warn": "⚠️",
+            "skipped": "➖", "no_program": "⚪", "ok": "✅", "warn": "⚠️",
             "expired": "🚨", "unknown": "❓"}.get(status, "❓")
 
 
@@ -29,10 +29,13 @@ def _status_line(results: list) -> str:
     success = sum(1 for r in results if r.get("status") == "success")
     already = sum(1 for r in results if r.get("status") == "already")
     skipped = sum(1 for r in results if r.get("status") == "skipped")
+    noprog = sum(1 for r in results if r.get("status") == "no_program")
     failed = sum(1 for r in results if r.get("status") == "failed")
     parts = [f"成功 {success}", f"已签 {already}"]
     if skipped:
         parts.append(f"跳过 {skipped}")
+    if noprog:
+        parts.append(f"无签到活动 {noprog}")
     if failed:
         parts.append(f"失败 {failed}")
     line = " · ".join(parts)
@@ -96,9 +99,33 @@ def _health_block(healths: list) -> str:
     return "\n".join(lines)
 
 
+def _monitor_block(monitors: list) -> str:
+    """本机其他 AI 平台巡检（未接入签到引擎，只报登录态，不参与签到）"""
+    if not monitors:
+        return ""
+    ok = [m for m in monitors if m.get("status") == "ok"]
+    seen = [m for m in monitors if m.get("status") in ("warn", "expired")]
+    none = [m for m in monitors if m.get("status") == "none"]
+    unknown = [m for m in monitors if m.get("status") not in ("ok", "warn", "expired", "none")]
+    if not seen:
+        line = f"🖥 其他平台巡检：{len(monitors)} 项在册"
+        if ok:
+            line += f"，{len(ok)} 项有登录态"
+        if none:
+            line += f"，{len(none)} 项无登录态/未登录过"
+        if unknown:
+            line += f"，{len(unknown)} 项凭据加密未验证"
+        return line
+    lines = [f"🖥 其他平台巡检：{len(seen)}/{len(monitors)} 项登录态需处理"]
+    for m in seen:
+        lines.append(f"{_icon(m.get('status'))} {m.get('platform', '?')}："
+                     f"{m.get('message', '')}")
+    return "\n".join(lines)
+
+
 def build_daily_report(results: list, healths: list = None, credits: list = None,
                        totals: list = None, prev_totals: dict | None = None,
-                       title: str = "AI 平台自动化日报") -> str:
+                       monitors: list = None, title: str = "AI 平台自动化日报") -> str:
     """组装日报文本（签到明细 → 汇总 → 总积分（含环比）→ 健康）
 
     积分到期数据仍会采集（写入日志），但日报不再展示该区块——与生产仓库日报口径一致。
@@ -126,6 +153,10 @@ def build_daily_report(results: list, healths: list = None, credits: list = None
     hb = _health_block(healths)
     if hb:
         text += "\n\n" + hb
+
+    mb = _monitor_block(monitors or [])
+    if mb:
+        text += "\n\n" + mb
 
     text += f"\n\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     return text

@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIAutomator 控制台</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --ink:#16202e; --ink2:#4a5a70; --ink3:#8493a6;
+    --line:#e4e9f0; --bg:#f3f6fa; --card:#fff;
+    --brand:#0e4aa8; --brand-l:#2f6fe4; --ok:#177e4f; --warn:#b26a00; --bad:#bb3a3a;
+  }
+  body{
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:var(--bg); color:var(--ink); height:100vh; display:flex; overflow:hidden;
+  }
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#c6d0dd;border-radius:5px}
+
+  /* ---- sidebar ---- */
+  nav{
+    width:200px; flex:0 0 auto; background:linear-gradient(180deg,#0d3a86,#123a6e);
+    color:#cfe0f7; display:flex; flex-direction:column; padding:20px 0;
+  }
+  .brand{padding:0 20px 18px; border-bottom:1px solid rgba(255,255,255,.14)}
+  .brand h1{font-size:16px;color:#fff;letter-spacing:.3px}
+  .brand small{font-size:10.5px;color:#8fb0dd}
+  nav .items{flex:1;padding-top:14px}
+  .nav-item{
+    padding:11px 20px; font-size:13.5px; cursor:pointer; display:flex; align-items:center; gap:10px;
+    color:#b9cdec; border-left:3px solid transparent; transition:.15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+  .nav-item.on{background:rgba(255,255,255,.10);color:#fff;border-left-color:#6ea0ff;font-weight:600}
+  nav .foot{padding:14px 20px 0;font-size:10.5px;color:#7d9cc7;border-top:1px solid rgba(255,255,255,.14)}
+
+  /* ---- main ---- */
+  main{flex:1; overflow-y:auto; padding:26px 30px 60px}
+  .page{display:none; max-width:1020px}
+  .page.on{display:block}
+  .ph{display:flex; align-items:baseline; gap:12px; margin-bottom:6px}
+  .ph h2{font-size:20px;letter-spacing:-.2px}
+  .ph .hint{font-size:12px;color:var(--ink3)}
+  .sub{font-size:12.5px;color:var(--ink3);line-height:1.7;margin-bottom:18px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:18px 20px;margin-top:14px}
+  .card h3{font-size:14px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .card h3 .hint{margin-left:auto;font-size:11px;color:var(--ink3);font-weight:400}
+
+  /* chips & buttons */
+  .chip{display:inline-block;font-size:10.5px;border-radius:20px;padding:2px 9px;font-weight:600}
+  .chip.ok{background:#e5f4ec;color:var(--ok)}
+  .chip.warn{background:#fdf2df;color:var(--warn)}
+  .chip.bad{background:#fbe7e7;color:var(--bad)}
+  .chip.off{background:#eef1f5;color:var(--ink3)}
+  .chip.blue{background:#eaf1fd;color:var(--brand)}
+  .chip.info{background:#eaf1fd;color:var(--brand)}
+  .dim{color:var(--ink3);font-size:12.5px}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;word-break:break-all}
+  button{
+    font-family:inherit; font-size:12.5px; cursor:pointer; border-radius:7px;
+    border:1px solid var(--line); background:#fff; color:var(--ink); padding:7px 14px; transition:.15s;
+  }
+  button:hover{border-color:#b8c6da;background:#f8fafd}
+  button.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+  button.primary:hover{background:#0c3f90}
+  button.danger{color:var(--bad)}
+  button.danger:hover{background:#fbe7e7;border-color:#e7bcbc}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+  /* toggle */
+  .tg{position:relative;width:34px;height:19px;flex:0 0 auto;cursor:pointer}
+  .tg i{position:absolute;inset:0;background:#c9d3e0;border-radius:20px;transition:.18s}
+  .tg i::after{content:"";position:absolute;top:2.5px;left:2.5px;width:14px;height:14px;background:#fff;border-radius:50%;transition:.18s}
+  .tg.on i{background:var(--ok)}
+  .tg.on i::after{left:17.5px}
+
+  /* platform cards */
+  .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:14px}
+  .pcard{background:#fff;border:1px solid var(--line);border-radius:11px;padding:15px 17px}
+  .pcard .top{display:flex;align-items:center;gap:9px}
+  .pcard .top b{font-size:14.5px}
+  .pcard .top .tg{margin-left:auto}
+  .pcard .meta{margin-top:9px;font-size:11.5px;color:var(--ink2);display:flex;flex-wrap:wrap;gap:6px 14px}
+  .pcard .hline{margin-top:9px;font-size:12px;color:var(--ink2);line-height:1.55;display:flex;gap:7px;align-items:flex-start}
+  .pcard.off{opacity:.55;background:#fafbfd}
+  .dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px}
+  .drow{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--line);
+        border-radius:9px;background:#fbfcfe;font-size:12.5px}
+  .drow b{font-size:12.5px}
+  .drow .cat{color:var(--ink3);font-size:11px}
+  .drow .rt{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .drow.off{opacity:.6}
+  .mini{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid var(--line);
+        background:#fff;color:var(--ink2);cursor:pointer;white-space:nowrap}
+  .mini:hover{border-color:var(--brand);color:var(--brand)}
+  .mini.primary-mini{background:var(--brand);border-color:var(--brand);color:#fff}
+  .mini.primary-mini:hover{background:#2b5fd0;color:#fff}
+  .mini:disabled{opacity:.45;cursor:default}
+  .toast{position:fixed;right:22px;bottom:22px;max-width:420px;background:#12243d;color:#e8f0fb;
+         font-size:12.5px;padding:11px 15px;border-radius:9px;box-shadow:0 8px 26px rgba(10,26,48,.28);
+         opacity:0;transform:translateY(8px);transition:.22s;pointer-events:none;z-index:99;line-height:1.55}
+  .toast.on{opacity:1;transform:translateY(0)}
+  .toast.bad{background:#5b1f22}
+
+  /* stat row */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:14px}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+  .stat dt{font-size:10.5px;color:var(--ink3);margin-bottom:6px}
+  .stat dd{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+  .stat dd u{text-decoration:none;font-size:10.5px;color:var(--ink3);margin-left:3px}
+
+  /* log pane */
+  .log{
+    background:#101826;color:#c4d3e6;font-family:ui-monospace,Consolas,monospace;
+    font-size:11.5px;line-height:1.75;border-radius:9px;padding:13px 15px;
+    height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin-top:12px;
+  }
+  .log .err{color:#ff9c9c}
+  .log .dim{color:#6b7c95}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;font-size:10.5px;font-weight:600;color:var(--ink3);padding:7px 9px;border-bottom:1px solid var(--line)}
+  td{padding:9px 9px;border-bottom:1px solid #f0f3f8;color:var(--ink2);vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+
+  /* inputs */
+  input[type=text],input[type=time]{
+    font-family:inherit;font-size:13px;border:1px solid var(--line);border-radius:7px;
+    padding:7px 11px;color:var(--ink);outline:none;background:#fff;
+  }
+  input:focus{border-color:var(--brand-l)}
+  label.chk{font-size:12.5px;color:var(--ink2);display:flex;align-items:center;gap:6px;cursor:pointer}
+  label.chk input{accent-color:var(--brand)}
+
+  /* modal */
+  .mask{position:fixed;inset:0;background:rgba(13,27,48,.45);display:none;align-items:center;justify-content:center;z-index:50}
+  .mask.on{display:flex}
+  .modal{background:#fff;border-radius:13px;padding:22px 24px;width:380px;max-width:92vw}
+  .modal h3{font-size:15px;margin-bottom:6px}
+  .modal p{font-size:12px;color:var(--ink3);line-height:1.6;margin-bottom:14px}
+  .modal .fld{margin-bottom:12px}
+  .modal .fld input{width:100%}
+  .modal .fld small{display:block;font-size:11px;color:var(--ink3);margin-top:5px}
+  .modal .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+  .msg{font-size:12px;margin-top:10px;min-height:16px;line-height:1.6}
+  .msg.ok{color:var(--ok)} .msg.bad{color:var(--bad)}
+
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid #bcd0f0;border-top-color:var(--brand);
+        border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* history */
+  .hrow{display:flex;gap:10px;align-items:center;padding:8px 2px;border-bottom:1px solid #f0f3f8;font-size:12.5px}
+  .hrow:last-child{border-bottom:0}
+  .hrow .d{color:var(--ink3);width:88px;flex:0 0 auto;font-variant-numeric:tabular-nums}
+  .hrow .v{color:var(--ink);font-variant-numeric:tabular-nums}
+
+  @media(max-width:760px){
+    body{flex-direction:column}
+    nav{width:100%;flex-direction:row;align-items:center;padding:10px}
+    .brand{border:0;padding:0 10px}
+    nav .items{display:flex;padding:0}
+    .nav-item{padding:8px 10px;border-left:0;border-bottom:3px solid transparent}
+    nav .foot{display:none}
+    main{padding:18px 14px 50px}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="brand">
+    <h1>AIAutomator</h1>
+    <small>本地控制台 · 127.0.0.1</small>
+  </div>
+  <div class="items">
+    <div class="nav-item on" data-p="dash">▦ 仪表盘</div>
+    <div class="nav-item" data-p="run">▶ 立即执行</div>
+    <div class="nav-item" data-p="acct">◉ 账号管理</div>
+    <div class="nav-item" data-p="scan">◈ 平台扫描</div>
+    <div class="nav-item" data-p="sched">⏱ 计划任务</div>
+    <div class="nav-item" data-p="logs">▤ 运行日志</div>
+  </div>
+  <div class="foot">本地 Web UI<br>不收集不上传任何凭据</div>
+</nav>
+
+<main>
+  <!-- ============ 仪表盘 ============ -->
+  <section class="page on" id="p-dash">
+    <div class="ph"><h2>仪表盘</h2><span class="hint" id="dash-time"></span></div>
+    <div class="sub">平台启停、登录态健康、账户总积分一览。开关实时写入 config/user.toml。</div>
+
+    <div class="btn-row">
+      <button class="primary" id="btn-status">刷新状态（健康 + 总积分）</button>
+      <span id="status-spin"></span>
+    </div>
+
+    <div class="pgrid" id="pgrid"></div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>本机其他 AI 平台 <span class="hint">platform_scan.py · 仅巡检登录态，不参与签到</span></h3>
+      <div id="disc-grid" style="margin-top:4px"><span class="dim">扫描中…</span></div>
+    </div>
+
+    <div class="card">
+      <h3>账户总积分 <span class="hint" id="prev-date"></span></h3>
+      <div id="totals-now" style="font-size:12.5px;color:var(--ink3)">尚未查询，点上方按钮获取</div>
+    </div>
+
+    <div class="card">
+      <h3>近 7 日快照 <span class="hint">logs/totals-*.json</span></h3>
+      <div id="thist"></div>
+    </div>
+  </section>
+
+  <!-- ============ 立即执行 ============ -->
+  <section class="page" id="p-run">
+    <div class="ph"><h2>立即执行</h2></div>
+    <div class="sub">等效命令 <code>python -m automator run daily</code>。执行过程实时输出，关闭页面任务继续在后台跑完。</div>
+
+    <div class="card">
+      <h3>每日任务（签到 → 健康 → 积分 → 总积分 → 日报）</h3>
+      <div class="btn-row">
+        <label class="chk"><input type="checkbox" id="opt-dry">只读试跑（不签到不通知）</label>
+        <label class="chk"><input type="checkbox" id="opt-nonotify">不推送通知</label>
+        <button class="primary" id="btn-daily">执行 daily</button>
+        <button id="btn-dry-quick">仅试跑一次</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>单项操作</h3>
+      <div class="btn-row">
+        <button id="btn-credits">积分到期盘点</button>
+        <button id="btn-notify">通知通道测试</button>
+        <button id="btn-status2">健康 + 总积分</button>
+      </div>
+    </div>
+
+    <div class="log" id="run-log"><span class="dim">等待任务…</span></div>
+    <div style="margin-top:10px;font-size:12px;color:var(--ink3)" id="run-status"></div>
+  </section>
+
+  <!-- ============ 账号管理 ============ -->
+  <section class="page" id="p-acct">
+    <div class="ph"><h2>账号管理</h2><span class="hint" id="acct-time"></span></div>
+    <div class="sub">本机全部 AI 平台一页看完：扫描结果与凭据库（auths/）合并展示。凭据等同账号密码——仅存本机、已 gitignore，本页路径与账号全部脱敏。</div>
+
+    <div class="card">
+      <h3>平台账号总览 <span class="hint">platform_scan.py · 与「平台扫描」同一份数据</span></h3>
+      <div id="acct-sum"><span class="dim">统计中…</span></div>
+      <div class="btn-row" style="margin:12px 0 6px">
+        <input type="text" id="acct-q" placeholder="搜索平台 / 厂商 / 分类" style="width:230px">
+        <span id="acct-scope" class="btn-row" style="gap:6px"></span>
+        <button id="acct-rescan">重新扫描</button>
+      </div>
+      <div id="acct-platforms"><span class="dim">扫描本机平台中…</span></div>
+      <div style="font-size:11.5px;color:var(--ink3);margin-top:10px;line-height:1.7">
+        「已接入引擎 + 真实签到」有平台实现：真调接口签到、真取总积分（Trae CN 已按此接入，同族协议直接复用）；
+        「已加入签到 + 仅巡检」是扫描后手工纳入的，没有签到协议，只按日判读登录态、不会伪造签到成功；
+        「未纳管」只做本机凭据判读，点「详情」看凭据文件与接口，点「加入签到」即进入每日任务与日报；
+        「未收录」是自动发现、但内置清单没有的应用（扫目录名 + 凭据特征得出），点「收录到清单」后按凭据格式完整判读。
+        账号数只写算得出来的：<b>可用账号</b>＝能直接用于签到，<b>登录痕迹</b>＝数据库里的历史账号，<b>不可判读</b>＝凭据加密数不出，不填 0 冒充。
+      </div>
+    </div>
+
+    <div class="card" id="card-wb">
+      <h3>WorkBuddy（短信登录） <span class="hint">wb_accounts.py</span></h3>
+      <div class="btn-row" style="margin-bottom:10px">
+        <button class="primary" id="wb-add">＋ 添加账号</button>
+        <button data-ajob='{"kind":"wb","action":"refresh"}'>全部续期</button>
+        <button data-ajob='{"kind":"wb","action":"checkin-test"}'>只读试跑</button>
+        <button id="wb-reload">刷新列表</button>
+      </div>
+      <div id="wb-table"></div>
+    </div>
+
+    <div class="card" id="card-trae">
+      <h3>TraeWork（桌面导入 / 浏览器登录） <span class="hint">trae_accounts.py</span></h3>
+      <div class="btn-row" style="margin-bottom:10px">
+        <button class="primary" data-ajob='{"kind":"trae","action":"trae-import"}'>桌面导入</button>
+        <button data-ajob='{"kind":"trae","action":"trae-web"}'>浏览器登录（120s）</button>
+        <button data-ajob='{"kind":"trae","action":"refresh"}'>全部续期</button>
+        <button data-ajob='{"kind":"trae","action":"checkin-test"}'>只读试跑</button>
+        <button id="trae-reload">刷新列表</button>
+      </div>
+      <div id="trae-table"></div>
+      <div style="font-size:11.5px;color:var(--ink3);margin-top:8px">
+        浏览器登录回调端口 127.0.0.1:17388，登录前请先退出 Trae 客户端。
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 平台扫描 ============ -->
+  <section class="page" id="p-scan">
+    <div class="ph"><h2>平台扫描</h2><span class="hint" id="scan-time"></span></div>
+    <div class="sub">扫描本机已安装的 AI 平台（桌面 Agent / AI IDE / CLI / 客户端）：安装路径、版本、凭据文件登录态判读、接口信息。已接入 AIAutomator 的平台可联网复核真实登录态。</div>
+
+    <div class="btn-row">
+      <button class="primary" id="scan-run">扫描本机</button>
+      <button id="scan-health">联网复核已接入平台登录态</button>
+      <span id="scan-spin"></span>
+    </div>
+
+    <div class="msg" id="scan-msg"></div>
+    <div id="scan-summary"></div>
+    <div id="scan-body"><span class="dim">尚未扫描，点上方按钮开始。</span></div>
+
+    <div class="log" id="scan-log" style="display:none"></div>
+  </section>
+
+  <!-- ============ 计划任务 ============ -->
+  <section class="page" id="p-sched">
+    <div class="ph"><h2>计划任务</h2></div>
+    <div class="sub">Windows 计划任务 <code>AIAutomatorDaily</code>，支持睡眠唤醒（WakeToRun），到点自动签到并推送飞书。</div>
+
+    <div class="card">
+      <h3>当前状态 <span class="hint">schtasks</span></h3>
+      <div id="sched-status" style="font-size:13px;line-height:2">加载中…</div>
+      <div class="btn-row" style="margin-top:12px">
+        <input type="time" id="sched-time" value="08:00" step="60">
+        <button class="primary" id="sched-setup">注册 / 更新任务</button>
+        <button class="danger" id="sched-remove">删除任务</button>
+        <button id="sched-refresh">刷新</button>
+      </div>
+      <div class="msg" id="sched-msg"></div>
+    </div>
+  </section>
+
+  <!-- ============ 日志 ============ -->
+  <section class="page" id="p-logs">
+    <div class="ph"><h2>运行日志</h2><span class="hint">logs/task-run.log 尾部 150 行</span></div>
+    <div class="sub">计划任务与手动执行共用同一份日志。Encoding 异常字符按原样显示。</div>
+    <div class="btn-row">
+      <button class="primary" id="log-reload">刷新日志</button>
+      <button class="danger" id="log-clear">清空日志</button>
+      <span style="font-size:11.5px;color:var(--ink3)">历史日志为旧版控制台 GBK 转码产物，已尽力还原；新日志为干净 UTF-8</span>
+    </div>
+    <div class="log" id="log-view" style="height:460px"></div>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<!-- WorkBuddy 添加账号弹窗 --><div class="mask" id="wb-modal">
+  <div class="modal">
+    <h3>WorkBuddy 添加账号</h3>
+    <p>手机号收取短信验证码登录。凭据保存至 auths/workbuddy-&lt;uid&gt;.json，由脚本每日自动续期。</p>
+    <div class="fld">
+      <input type="text" id="wb-phone" placeholder="手机号" maxlength="11">
+    </div>
+    <div class="fld" id="code-fld" style="display:none">
+      <input type="text" id="wb-code" placeholder="短信验证码" maxlength="6">
+      <small id="code-hint">验证码已发送</small>
+    </div>
+    <div class="msg" id="wb-msg"></div>
+    <div class="acts">
+      <button id="wb-cancel">取消</button>
+      <button class="primary" id="wb-send">发送验证码</button>
+      <button class="primary" id="wb-verify" style="display:none">登录并保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+/* ---------- 导航 ---------- */
+$$('.nav-item').forEach(el => el.onclick = () => {
+  $$('.nav-item').forEach(e => e.classList.remove('on'));
+  $$('.page').forEach(e => e.classList.remove('on'));
+  el.classList.add('on');
+  $('#p-' + el.dataset.p).classList.add('on');
+  if (el.dataset.p === 'logs') loadLogs();
+  if (el.dataset.p === 'sched') renderSched();
+  if (el.dataset.p === 'acct' && !PA) loadPlatformAccounts();
+});
+
+async function api(path, body, method) {
+  const opt = body !== undefined
+    ? {method: method || 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}
+    : {};
+  const r = await fetch(path, opt);
+  return r.json();
+}
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const statusChip = s => {
+  const m = {ok:['ok','正常'], warn:['warn','临期'], expired:['bad','失效'], unknown:['off','未知']};
+  const [c, t] = m[s] || ['off', s || '未知'];
+  return `<span class="chip ${c}">${t}</span>`;
+};
+
+/* ---------- 任务轮询 ---------- */
+let pollTimer = null, pollTarget = null, pollDone = null;
+function pollJob(jid, logEl, onDone) {
+  clearInterval(pollTimer);
+  pollTarget = jid; pollDone = onDone || null;
+  const tick = async () => {
+    if (pollTarget !== jid) return;
+    const j = await api('/api/job/' + jid);
+    if (logEl && j.lines) logEl.textContent = j.lines.join('\n') || '…';
+    if (logEl) logEl.scrollTop = logEl.scrollHeight;
+    if (j.status !== 'running') {
+      clearInterval(pollTimer); pollTarget = null;
+      if (onDone) onDone(j);
+    }
+  };
+  tick();
+  pollTimer = setInterval(tick, 800);
+}
+
+function setBusy(el, on, text) {
+  el.innerHTML = on ? '<span class="spin"></span> ' + (text || '执行中') : '';
+}
+
+/* ---------- 仪表盘 ---------- */
+let OV = null, LAST_STATUS = null;
+
+async function loadOverview() {
+  OV = await api('/api/overview');
+  $('#dash-time').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+  renderPlatforms();
+  renderDiscovered();
+  renderTotals();
+  renderHistory();
+  const s = OV.schedule;
+  $('#sched-status').innerHTML = s.registered
+    ? `<span class="chip ok">已注册</span>　下次运行：${esc(s.next_run || '-')}　状态：${esc(s.status || '-')}`
+    : '<span class="chip off">未注册</span>　注册后每天到点自动执行';
+}
+
+function renderPlatforms() {
+  const healths = {}, totals = {};
+  (LAST_STATUS?.healths || []).forEach(h => healths[h.platform] = h);
+  (LAST_STATUS?.totals || []).forEach(t => totals[t.platform] = t);
+  $('#pgrid').innerHTML = OV.platforms.map(p => {
+    const h = healths[p.display] || healths[p.name];
+    const t = totals[p.display] || totals[p.name];
+    return `<div class="pcard ${p.enabled ? '' : 'off'}">
+      <div class="top"><b>${esc(p.display)}</b>
+        ${p.enabled ? '<span class="chip blue">启用</span>' : '<span class="chip off">停用</span>'}
+        <span class="tg ${p.enabled ? 'on' : ''}" data-tg="${p.name}"><i></i></span></div>
+      ${p.source === 'scan' ? `<div style="text-align:right;margin-top:6px"><button class="mini" data-detach="${esc(p.name)}">移出签到列表</button></div>` : ''}
+      <div class="meta"><span>${p.daily_credits ? '每日 ' + p.daily_credits + ' 分' : '签到接口待接入'}</span><span>登录态: ${esc(p.auth)}</span></div>
+      <div class="hline">${h ? statusChip(h.status) + '<span>' + esc(h.message) + '</span>'
+                            : '<span class="chip off">未检查</span><span>点「刷新状态」检查登录态</span>'}</div>
+      ${t ? `<div class="hline"><span class="chip ok">总积分</span><b style="font-size:13px">${
+            t.available && t.total != null ? t.total + ' 分' + (t.note ? '（' + esc(t.note) + '）' : '')
+            : '接口未提供'}</b></div>` : ''}
+    </div>`;
+  }).join('');
+  $$('.tg[data-tg]').forEach(el => el.onclick = async () => {
+    el.style.pointerEvents = 'none';
+    const r = await api('/api/platform/toggle',
+      {name: el.dataset.tg, enabled: !el.classList.contains('on')});
+    if (r.platforms) { OV.platforms = r.platforms; renderPlatforms(); }
+  });
+}
+
+function renderDiscovered() {
+  const list = OV?.discovered || [];
+  const grid = $('#disc-grid');
+  if (!grid) return;
+  grid.innerHTML = list.length ? `<div class="dgrid">${list.map(d => `
+    <div class="drow ${d.login_state === 'missing' ? 'off' : ''}" title="${esc(d.detail || '')}${d.auth_path ? '\n' + esc(d.auth_path) : ''}">
+      <b>${esc(d.display)}</b><span class="cat">${esc(d.category)}${d.version ? ' · v' + esc(d.version) : ''}</span>
+      ${d.running && d.running.length ? '<span class="chip ok">运行中</span>' : ''}
+      <span class="rt">${scanChip(d.login_state)}
+        <button class="mini primary-mini" data-attach="${esc(d.key)}">＋签到</button></span>
+    </div>`).join('')}</div>`
+    : '<span class="dim" style="font-size:12px">未发现其他平台</span>';
+}
+
+function renderTotals() {
+  const h = OV.totals_history;
+  $('#prev-date').textContent = h && h[0] ? ('最近快照 ' + h[0].date) : '';
+}
+
+function renderHistory() {
+  const h = OV.totals_history || [];
+  if (!h.length) { $('#thist').innerHTML = '<span style="font-size:12.5px;color:var(--ink3)">暂无快照，跑一次每日任务后生成</span>'; return; }
+  const dates = h.map(x => x.date);
+  const names = [...new Set(h.flatMap(x => Object.keys(x.totals)))];
+  $('#thist').innerHTML = names.map(n => {
+    let cells = '', prev = null;
+    dates.slice().reverse().forEach(d => {   // 早 → 晚
+      const v = h.find(x => x.date === d)?.totals[n];
+      let delta = '';
+      if (v != null && prev != null) {
+        const dif = Math.round(v - prev);
+        delta = dif ? `<span style="color:${dif > 0 ? 'var(--ok)' : 'var(--bad)'};font-size:10.5px"> ${dif > 0 ? '+' : ''}${dif}</span>` : '';
+      }
+      cells += `<span style="min-width:86px;display:inline-block">${v != null ? v : '—'}${delta}</span>`;
+      if (v != null) prev = v;
+    });
+    return `<div class="hrow"><span class="v" style="width:130px;flex:0 0 auto">${esc(n)}</span>${cells}</div>`;
+  }).join('');
+}
+
+$('#btn-status').onclick = $('#btn-status2').onclick = () => {
+  setBusy($('#status-spin'), true);
+  const r = api('/api/run/status', {});
+  r.then(x => pollJob(x.job, $('#run-log'), j => {
+    setBusy($('#status-spin'), false);
+    if (j.result) { LAST_STATUS = j.result; renderPlatforms(); }
+  }));
+};
+$('#btn-credits').onclick = () => api('/api/run/credits', {})
+  .then(x => pollJob(x.job, $('#run-log')));
+$('#btn-notify').onclick = () => api('/api/run/notify-test', {})
+  .then(x => pollJob(x.job, $('#run-log'), j =>
+    $('#run-status').textContent = j.status === 'done' ? '通知测试完成' : '通知测试失败，请检查 config/secrets.json'));
+
+/* ---------- 执行 ---------- */
+$('#btn-daily').onclick = () => startDaily(false);
+$('#btn-dry-quick').onclick = () => startDaily(true);
+function startDaily(forceDry) {
+  $('#run-log').textContent = '';
+  $('#run-status').innerHTML = '<span class="spin"></span> 任务执行中…';
+  api('/api/run/daily', {dry: forceDry || $('#opt-dry').checked,
+                         no_notify: $('#opt-nonotify').checked})
+    .then(x => pollJob(x.job, $('#run-log'), j => {
+      const res = j.result?.results || [];
+      const ok = res.filter(r => r.success).length;
+      $('#run-status').textContent = j.status === 'done'
+        ? `完成：${ok}/${res.length} 项成功` + (j.kind === 'daily' ? '，已推送飞书' : '')
+        : '执行出错，详见上方日志';
+      loadOverview();
+    }));
+}
+
+/* ---------- 平台账号总览（扫描结果 × 凭据库） ---------- */
+let PA = null, PA_Q = '', PA_SCOPE = 'all';
+const PA_OPEN = new Set();
+const PA_SCOPE_CHIP = {integrated: ['blue', '已接入引擎'], attached: ['ok', '已加入签到'],
+                       external: ['off', '未纳管']};
+// 账号数的口径：算得出来的才叫数字，算不出来的写明"不可判读"，不填 0 冒充
+const ACC_LABEL = {real: '可用账号', trace: '登录痕迹', unknown: '不可判读', none: '无凭据'};
+// 登录态是怎么确认的：api=已接入平台可用真实签到/查积分动作确认；
+// expiry=本地能解出 token 到期；file=只能确认凭据文件在
+const VERIFY_CHIP = {api: ['ok', '接口可实测'], expiry: ['info', '可读到到期'], file: ['off', '仅文件存在']};
+
+async function loadPlatformAccounts() {
+  const el = $('#acct-platforms');
+  if (!el) return;
+  let r;
+  try { r = await api('/api/accounts/platforms'); }
+  catch (e) { el.innerHTML = `<span class="dim">扫描失败：${esc(String(e))}</span>`; return; }
+  if (r.error) { el.innerHTML = `<span style="color:var(--bad);font-size:12px">扫描失败：${esc(r.error)}</span>`; return; }
+  PA = r;
+  renderPlatformAccounts();
+}
+
+function renderPlatformAccounts() {
+  if (!PA) return;
+  const el = $('#acct-platforms');
+  if (!el) return;
+  const s = PA.summary;
+  $('#acct-time').textContent = '扫描于 ' + new Date(PA.ts * 1000).toLocaleString('zh-CN');
+  $('#acct-sum').innerHTML = `<div class="btn-row">
+    <span class="chip info">本机平台 ${s.total}</span>
+    <span class="chip blue">已接入引擎 ${s.integrated}</span>
+    <span class="chip ok">已加入签到 ${s.attached}</span>
+    <span class="chip off">未纳管 ${s.external}</span>${s.discovered ? `
+    <span class="chip warn">未收录 ${s.discovered}</span>` : ''}
+    <span class="chip ok">有登录态 ${s.logged_in}</span>
+    <span class="chip warn">凭据待验证 ${s.pending}</span>
+    <span class="chip info">可用账号 ${s.accounts}</span>${s.trace_accounts ? `
+    <span class="chip off">登录痕迹 ${s.trace_accounts}</span>` : ''}${s.unknown_accounts ? `
+    <span class="chip off">账号不可判读 ${s.unknown_accounts}</span>` : ''}
+  </div>`;
+
+  const scopes = [['all', '全部'], ['integrated', '已接入引擎'], ['attached', '已加入签到'],
+                  ['external', '未纳管'], ['discovered', '未收录']];
+  $('#acct-scope').innerHTML = scopes.map(([k, t]) =>
+    `<button class="mini ${PA_SCOPE === k ? 'primary-mini' : ''}" data-scope="${k}">${t}</button>`).join('');
+  $('#acct-scope').querySelectorAll('[data-scope]').forEach(b => b.onclick = () => {
+    PA_SCOPE = b.dataset.scope; renderPlatformAccounts();
+  });
+
+  const q = PA_Q.trim().toLowerCase();
+  const rows = (PA.rows || []).filter(r =>
+    (PA_SCOPE === 'all'
+      || (PA_SCOPE === 'discovered' ? r.catalog === 'discovered' : r.scope === PA_SCOPE)) &&
+    (!q || (r.display + r.vendor + r.category + (r.detail || '')).toLowerCase().includes(q)));
+
+  if (!rows.length) {
+    el.innerHTML = '<div class="dim" style="font-size:12.5px">没有匹配的平台</div>';
+    return;
+  }
+
+  el.innerHTML = `<table>
+    <tr><th style="width:21%">平台</th><th>纳管</th><th>登录态 / 校验</th><th style="white-space:nowrap">账号</th>
+        <th style="width:23%">凭据位置</th><th>接口</th><th></th></tr>` +
+    rows.map(r => {
+      const [c, t] = PA_SCOPE_CHIP[r.scope] || ['off', r.scope];
+      const mode = r.mode === 'real'
+        ? ' <span class="chip ok" title="有平台实现：真实签到 + 真实积分">真实签到</span>'
+        : (r.checkin_support === 'none'
+          ? ` <span class="chip off" title="${esc(r.checkin_note || '')}；接协议无从谈起">无签到活动</span>`
+          : (r.mode === 'monitor'
+            ? ' <span class="chip warn" title="无签到协议：仅按日巡检登录态">仅巡检</span>' : ''));
+      const cat = r.catalog === 'discovered'
+        ? ' <span class="chip warn" title="自动发现、尚未收录进清单">未收录</span>'
+        : (r.catalog === 'extra'
+          ? ' <span class="chip info" title="已收录进 config/platforms.extra.toml">已收录</span>' : '');
+      const acc = (r.managed_accounts != null && r.managed_accounts > 0)
+        ? `${r.managed_accounts} 个<small style="color:var(--ink3)"> 凭据库</small>`
+        : (r.accounts_kind === 'unknown'
+          ? '<small style="color:var(--ink3)">不可判读</small>'
+          : `${r.accounts} 个<small style="color:var(--ink3)"> ${ACC_LABEL[r.accounts_kind] || ''}</small>`);
+      const [vc, vt] = VERIFY_CHIP[r.verify] || ['off', ''];
+      const fresh = r.fresh_days == null ? ''
+        : `<br><small style="color:var(--ink3)">凭据更新 ${r.fresh_days === 0 ? '今天' : r.fresh_days + ' 天前'}</small>`;
+      const act = r.scope === 'integrated'
+        ? (r.anchor ? `<button class="mini" data-goto="${esc(r.anchor)}">管理账号</button>`
+                    : '<small style="color:var(--ink3)">见平台定义</small>')
+        : (r.attached
+          ? `<button class="mini" data-detach="${esc(r.key)}">移出签到</button>`
+          : `<button class="mini primary-mini" data-attach="${esc(r.key)}">加入签到</button>`);
+      const disc = r.catalog === 'discovered'
+        ? `<button class="mini" data-catalog="${esc(r.key)}" title="收录后按凭据格式完整判读，不再每次靠自动发现">收录到清单</button>` : '';
+      const open = PA_OPEN.has(r.key);
+      return `<tr>
+        <td><b>${esc(r.display)}</b>${r.running && r.running.length ? ' <span class="chip ok">运行中</span>' : ''}
+          <br><small style="color:var(--ink3)">${esc(r.vendor) || esc(r.category)}${r.version ? ' · v' + esc(r.version) : ''}</small></td>
+        <td><span class="chip ${c}">${t}</span>${mode}${cat}</td>
+        <td>${scanChip(r.login_state)}${vt ? ' <span class="chip ' + vc + '" title="登录态是怎么确认的">' + vt + '</span>' : ''}${fresh}</td>
+        <td style="white-space:nowrap">${acc}</td>
+        <td><small class="mono" style="color:var(--ink3)">${esc(r.credential || '未发现凭据')}</small></td>
+        <td><small style="color:var(--ink3)">${r.api_count ? r.api_count + ' 条' : '—'}</small></td>
+        <td style="text-align:right;white-space:nowrap">${disc}${act}
+          <button class="mini" data-exp="${esc(r.key)}">${open ? '收起' : '详情'}</button></td>
+      </tr>` + (open ? paDetail(r) : '');
+    }).join('') + '</table>';
+}
+
+function paDetail(r) {
+  const files = r.files.length ? r.files.map(f =>
+    `<tr><td class="mono">${esc(f.path)}</td>
+      <td>${scanChip(f.state)}${f.accounts ? ` <span class="chip info">${f.accounts} 个${ACC_LABEL[f.accounts_kind] || '账号'}</span>` : ''}</td>
+      <td><small style="color:var(--ink3)">${esc(f.detail)}${f.expires_at ? ' · 到期 ' + esc(f.expires_at) : ''}${f.age_days != null ? ' · 更新 ' + (f.age_days === 0 ? '今天' : f.age_days + ' 天前') : ''}</small></td></tr>`).join('')
+    : '<tr><td colspan="3" class="dim">未发现凭据文件</td></tr>';
+  const apis = r.apis.length ? r.apis.map(a =>
+    `<tr><td>${esc(a.name)}</td>
+      <td class="mono">${a.url ? esc(a.method) + ' ' + esc(a.url) : esc(a.note || '-')}</td>
+      <td><small style="color:var(--ink3)">${esc(a.auth)}${a.source ? '<br>' + esc(a.source) : ''}</small></td></tr>`).join('')
+    : '<tr><td colspan="3" class="dim">无已确认接口</td></tr>';
+  return `<tr><td colspan="7" style="background:#fafcff;padding:2px 12px 14px">
+    <div style="font-size:11.5px;color:var(--ink3);margin:10px 0 3px">凭据文件</div>
+    <table>${files}</table>
+    <div style="font-size:11.5px;color:var(--ink3);margin:12px 0 3px">接口信息</div>
+    <table>${apis}</table>
+  </td></tr>`;
+}
+
+/* ---------- 账号 ---------- */
+async function loadAccounts(kind, el) {
+  const r = await api('/api/accounts?kind=' + kind);
+  const rows = r.accounts;
+  if (!rows.length) {
+    el.innerHTML = '<div style="font-size:12.5px;color:var(--ink3)">凭据目录为空，先添加账号</div>';
+    return;
+  }
+  el.innerHTML = `<table><tr><th>账号</th><th>UID</th><th>有效期</th><th>状态</th><th></th></tr>` +
+    rows.map(a => `<tr>
+      <td>${esc(a.label)}</td>
+      <td class="mono" style="font-family:ui-monospace,Consolas,monospace;font-size:11.5px">${esc(a.uid)}</td>
+      <td>${esc(a.days_left)}</td>
+      <td>${a.disabled ? '<span class="chip bad">需重登</span>'
+           : a.has_refresh === false ? '<span class="chip warn">无续期凭证</span>'
+           : '<span class="chip ok">正常</span>'}</td>
+      <td style="text-align:right"><button class="danger" data-rm="${esc(a.label)}" data-k="${kind}">删除</button></td>
+    </tr>`).join('') + '</table>';
+  el.querySelectorAll('button[data-rm]').forEach(b => b.onclick = async () => {
+    if (!confirm('确认删除账号「' + b.dataset.rm + '」的凭据文件？')) return;
+    const rr = await api('/api/accounts/remove', {kind: b.dataset.k, uid: b.dataset.rm});
+    alert(rr.output || (rr.ok ? '已删除' : '删除失败'));
+    loadAccounts(b.dataset.k, el);
+  });
+}
+$('#wb-reload').onclick = $('#wb-add-open') || (() => loadAccounts('wb', $('#wb-table')));
+$('#trae-reload').onclick = () => loadAccounts('trae', $('#trae-table'));
+
+$$('button[data-ajob]').forEach(b => b.onclick = () => {
+  const cfgA = JSON.parse(b.dataset.ajob);
+  $('#run-log').textContent = '';
+  $('.nav-item[data-p="run"]').click();
+  $('#run-status').innerHTML = '<span class="spin"></span> 执行中…';
+  api('/api/accounts/job', cfgA).then(x => pollJob(x.job, $('#run-log'), j => {
+    $('#run-status').textContent = j.status === 'done' ? '完成' : '执行出错';
+    loadAccounts(cfgA.kind, cfgA.kind === 'wb' ? $('#wb-table') : $('#trae-table'));
+  }));
+});
+
+/* ---------- WorkBuddy 添加（短信两步） ---------- */
+const wm = $('#wb-modal');
+$('#wb-add').onclick = () => {
+  wm.classList.add('on');
+  $('#wb-phone').value = ''; $('#wb-code').value = '';
+  $('#code-fld').style.display = 'none'; $('#wb-verify').style.display = 'none';
+  $('#wb-send').style.display = ''; $('#wb-msg').textContent = '';
+};
+$('#wb-cancel').onclick = () => wm.classList.remove('on');
+$('#wb-send').onclick = async () => {
+  const phone = $('#wb-phone').value.trim();
+  if (!/^1\d{10}$/.test(phone)) { $('#wb-msg').className = 'msg bad'; $('#wb-msg').textContent = '手机号格式不对'; return; }
+  $('#wb-msg').className = 'msg'; $('#wb-msg').textContent = '发送中…';
+  const r = await api('/api/wb/send-code', {phone});
+  $('#wb-msg').className = 'msg ' + (r.ok ? 'ok' : 'bad');
+  $('#wb-msg').textContent = r.msg;
+  if (r.ok) {
+    $('#code-fld').style.display = '';
+    $('#wb-verify').style.display = '';
+    $('#wb-send').style.display = 'none';
+    $('#wb-code').focus();
+  }
+};
+$('#wb-verify').onclick = async () => {
+  $('#wb-msg').className = 'msg'; $('#wb-msg').textContent = '登录中…';
+  const r = await api('/api/wb/verify', {phone: $('#wb-phone').value.trim(), code: $('#wb-code').value.trim()});
+  $('#wb-msg').className = 'msg ' + (r.ok ? 'ok' : 'bad');
+  $('#wb-msg').textContent = r.msg;
+  if (r.ok) setTimeout(() => { wm.classList.remove('on'); loadAccounts('wb', $('#wb-table')); }, 1200);
+};
+
+/* ---------- 计划任务 ---------- */
+function renderSched() { if (OV) { const s = OV.schedule;
+  $('#sched-status').innerHTML = s.registered
+    ? `<span class="chip ok">已注册</span>　下次运行：${esc(s.next_run || '-')}　状态：${esc(s.status || '-')}`
+    : '<span class="chip off">未注册</span>';
+}}
+$('#sched-refresh').onclick = loadOverview;
+$('#sched-setup').onclick = async () => {
+  const m = $('#sched-msg'); m.className = 'msg'; m.textContent = '注册中…';
+  const r = await api('/api/schedule', {action: 'setup', time: $('#sched-time').value});
+  m.className = 'msg ' + (r.ok ? 'ok' : 'bad');
+  m.textContent = (r.ok ? '已注册。' : '失败：') + (r.msg || '').split('\n').slice(-3).join(' ');
+  if (r.schedule) { OV.schedule = r.schedule; renderSched(); }
+};
+$('#sched-remove').onclick = async () => {
+  if (!confirm('确认删除计划任务 AIAutomatorDaily？')) return;
+  const m = $('#sched-msg'); m.className = 'msg'; m.textContent = '删除中…';
+  const r = await api('/api/schedule', {action: 'remove'});
+  m.className = 'msg ' + (r.ok ? 'ok' : 'bad');
+  m.textContent = (r.ok ? '已删除。' : '失败：') + (r.msg || '').split('\n').slice(-2).join(' ');
+  if (r.schedule) { OV.schedule = r.schedule; renderSched(); }
+};
+
+/* ---------- 日志 ---------- */
+async function loadLogs() {
+  $('#log-view').textContent = '加载中…';
+  const r = await api('/api/logs');
+  $('#log-view').textContent = r.lines.join('\n') || '（空）';
+  $('#log-view').scrollTop = $('#log-view').scrollHeight;
+}
+$('#log-reload').onclick = loadLogs;
+$('#log-clear').onclick = async () => {
+  if (!confirm('确认清空 task-run.log？此操作不可恢复。')) return;
+  await api('/api/logs/clear', {});
+  loadLogs();
+};
+
+/* ---------- 平台扫描 ---------- */
+const SCAN_STATE = {
+  ok:      ['ok',   '有效'],
+  expiring:['warn', '临期'],
+  expired: ['bad',  '过期'],
+  found:   ['info', '存在·未验证'],
+  missing: ['off',  '未找到'],
+};
+const scanChip = s => {
+  const [c, t] = SCAN_STATE[s] || ['off', s || '未知'];
+  return `<span class="chip ${c}">${t}</span>`;
+};
+
+function scanCard(it, integrated) {
+  const paths = it.install.map(p => `<span class="mono">${esc(p)}</span>`).join('<br>') || '—';
+  const authRows = it.auth.filter(a => a.exists || a.state !== 'missing').map(a => {
+    const st = scanChip(a.state);
+    const extra = a.accounts ? `　<span class="chip info">${a.accounts} 个账号</span>` : '';
+    return `<tr><td class="mono">${esc(a.path)}</td>` +
+           `<td>${st}${extra}<br><small style="color:var(--ink3)">${esc(a.detail || a.note || '')}</small></td></tr>`;
+  }).join('') || '<tr><td colspan="2" class="dim">无凭据文件</td></tr>';
+  const apis = it.apis.map(a => {
+    const addr = a.url ? `<span class="mono">${esc(a.method || '-')} ${esc(a.url)}</span>` : esc(a.note || '-');
+    return `<tr><td>${esc(a.name || '说明')}</td><td>${addr}</td>` +
+           `<td><small>${esc(a.auth || '')}${a.source ? '<br>' + esc(a.source) : ''}</small></td></tr>`;
+  }).join('') || '<tr><td colspan="3" class="dim">无已确认接口</td></tr>';
+  const badges =
+    (it.running && it.running.length ? `<span class="chip ok">运行中</span>` : '') +
+    (it.version ? `<span class="chip info">v${esc(it.version)}</span>` : '') +
+    (it.discovered ? `<span class="chip warn" title="不在内置清单里，自动发现">未收录</span>` : '') +
+    (integrated ? `<span class="chip ok">已接入</span><span class="chip ok">真实签到</span>` :
+      (it.attached
+        ? `<span class="chip ok">已加入签到</span>` +
+          (it.checkin_support === 'none' ? `<span class="chip off">无签到活动</span>`
+                                         : `<span class="chip warn">仅巡检</span>`)
+        : (it.checkin_support === 'none' ? `<span class="chip off">无签到活动</span>` : '')));
+  const action = integrated ? '' : (it.attached
+    ? `<button class="mini" data-detach="${esc(it.key)}">移出签到列表</button>`
+    : `<button class="mini primary-mini" data-attach="${esc(it.key)}">＋ 加入签到列表</button>`) +
+    (it.discovered
+      ? ` <button class="mini" data-catalog="${esc(it.key)}">收录到清单</button>` : '');
+  return `<div class="card">
+    <h3>${esc(it.display)} <small style="color:var(--ink3);font-weight:400">${esc(it.vendor)} · ${esc(it.category)}</small> ${badges}
+      <span style="float:right">${scanChip(it.login_state)}</span></h3>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">安装：${paths}</div>
+    <table class=""><thead><tr><th style="width:55%">凭据文件</th><th>判读</th></tr></thead><tbody>${authRows}</tbody></table>
+    <table class="" style="margin-top:8px"><thead><tr><th>接口</th><th style="width:45%">地址</th><th>鉴权 / 出处</th></tr></thead><tbody>${apis}</tbody></table>
+    ${action ? `<div class="btn-row" style="margin-top:10px">${action}
+      <span style="font-size:11.5px;color:var(--ink3)">加入后出现在仪表盘签到列表与每日日报；签到接口未接入前按日巡检登录态</span></div>` : ''}
+  </div>`;
+}
+
+async function loadScan() {
+  $('#scan-msg').textContent = '';
+  setBusy($('#scan-spin'), true, '扫描中');
+  try {
+    const r = await api('/api/scan');
+    setBusy($('#scan-spin'), false);
+    if (r.error) { $('#scan-msg').className = 'msg bad'; $('#scan-msg').textContent = r.error; return; }
+    $('#scan-time').textContent = '扫描于 ' + new Date(r.ts * 1000).toLocaleString();
+    const s = r.summary;
+    $('#scan-summary').innerHTML = `<div class="btn-row" style="margin:8px 0">
+      <span class="chip info">清单 ${s.scanned} 项</span>
+      <span class="chip ok">本机发现 ${s.found}</span>
+      <span class="chip ok">已接入 ${s.integrated}</span>${s.discovered ? `
+      <span class="chip warn">未收录 ${s.discovered}</span>` : ''}
+      <span class="chip warn">有登录态 ${s.logged_in}</span>
+      ${s.running ? `<span class="chip ok">运行中 ${s.running}</span>` : ''}
+    </div>`;
+    const intg = r.found.filter(i => i.integrated);
+    const other = r.found.filter(i => !i.integrated);
+    let html = '';
+    if (intg.length) html += `<h3 style="margin:14px 0 6px">已接入 AIAutomator（${intg.length}）</h3>` + intg.map(i => scanCard(i, true)).join('');
+    if (other.length) html += `<h3 style="margin:14px 0 6px">本机发现 · 未接入（${other.length}）</h3>` + other.map(i => scanCard(i, false)).join('');
+    html += `<div style="font-size:12px;color:var(--ink3);margin-top:10px">未安装：${r.not_installed.map(i => esc(i.display)).join('、') || '无'}</div>`;
+    html += `<div style="font-size:11.5px;color:var(--ink3);margin-top:8px">说明：登录态为<b>本地凭据判读</b>（文件存在性 / 过期时间 / 账号痕迹），「存在·未验证」表示凭据为加密或私有格式、需联网复核；接口信息中「平台定义 / 平台实现」来自 AIAutomator 仓库，与签到引擎同源，「公开文档」为厂商对外 API，桌面客户端登录态通常与 API Key 独立。</div>`;
+    $('#scan-body').innerHTML = html;
+  } catch (e) {
+    setBusy($('#scan-spin'), false);
+    $('#scan-msg').className = 'msg bad'; $('#scan-msg').textContent = '扫描失败：' + e;
+  }
+}
+$('#scan-run').onclick = loadScan;
+$('#scan-health').onclick = () => {
+  const lg = $('#scan-log'); lg.style.display = ''; lg.textContent = '联网复核中…';
+  api('/api/scan/health', {}).then(x => pollJob(x.job, lg, () => {}));
+};
+
+/* ---------- 手工纳入签到列表 ---------- */
+let toastTimer = null;
+function toast(msg, ok) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast on' + (ok === false ? ' bad' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast' + (ok === false ? ' bad' : ''); }, 4200);
+}
+
+async function attachPlatform(key, on) {
+  const r = await api('/api/platform/' + (on ? 'detach' : 'attach'), {key});
+  toast(r.msg || (r.ok ? '已更新' : '操作失败'), r.ok);
+  if (r.ok) {
+    await loadOverview();                       // 仪表盘 + 发现列表
+    await loadPlatformAccounts();               // 账号管理总览
+    if ($('#p-scan').classList.contains('on')) loadScan();
+  }
+  return r;
+}
+
+async function catalogPlatform(key) {
+  const r = await api('/api/catalog/add', {key});
+  toast(r.msg || (r.ok ? '已收录' : '操作失败'), r.ok);
+  if (r.ok) {
+    await loadPlatformAccounts();
+    if ($('#p-scan').classList.contains('on')) loadScan();
+  }
+  return r;
+}
+
+document.addEventListener('click', e => {
+  const x = e.target.closest('[data-exp]');
+  if (x) {
+    const k = x.dataset.exp;
+    PA_OPEN.has(k) ? PA_OPEN.delete(k) : PA_OPEN.add(k);
+    renderPlatformAccounts();
+    return;
+  }
+  const g = e.target.closest('[data-goto]');
+  if (g) { document.querySelector(g.dataset.goto)?.scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
+  const c = e.target.closest('[data-catalog]');
+  if (c) { c.disabled = true; catalogPlatform(c.dataset.catalog); return; }
+  const a = e.target.closest('[data-attach]');
+  if (a) { a.disabled = true; attachPlatform(a.dataset.attach, true); return; }
+  const d = e.target.closest('[data-detach]');
+  if (d) { d.disabled = true; attachPlatform(d.dataset.detach, false); }
+});
+
+$('#acct-q').oninput = e => { PA_Q = e.target.value; renderPlatformAccounts(); };
+$('#acct-rescan').onclick = async e => {
+  e.target.disabled = true;
+  e.target.textContent = '扫描中…';
+  try { await api('/api/scan', {}); } catch (_) { /* 失败也刷新一次缓存视图 */ }
+  await loadPlatformAccounts();
+  e.target.disabled = false;
+  e.target.textContent = '重新扫描';
+};
+
+/* ---------- 启动 ---------- */
+loadOverview().then(() => {
+  loadAccounts('wb', $('#wb-table'));
+  loadAccounts('trae', $('#trae-table'));
+});
+loadPlatformAccounts();
+</script>
+</body>
+</html>
